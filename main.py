@@ -52,14 +52,14 @@ class AutoClicker:
         self.root.title("Auto Clicker")
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
-        self.version = "v4.2"
+        self.version = "v4.3"
 
         self.points = []
         self.selected_index = None
         self.is_running = False
         self.stop_flag = False
         self.is_recording = False
-        self.clipboard_point = None  # for copy/cut/paste
+        self.clipboard_point = None
 
         self.s_hotkey_enabled = tk.BooleanVar(value=True)
         self.g_hotkey_enabled = tk.BooleanVar(value=True)
@@ -93,7 +93,7 @@ class AutoClicker:
         self.bind_list_shortcuts()
         self.start_keyboard_listener()
         self.root.update_idletasks()
-        self.root.geometry(f"520x{self.root.winfo_reqheight()}")
+        self.root.geometry(f"540x{self.root.winfo_reqheight()}")
 
     def force_english_keyboard(self):
         if platform.system() == "Windows":
@@ -112,6 +112,21 @@ class AutoClicker:
         if action == "1":
             return value_if_allowed.isdigit() or value_if_allowed == ""
         return True
+
+    def select_index(self, index):
+        """Select a list index and keep it visible. Clamps to valid range."""
+        if not self.points:
+            self.selected_index = None
+            self.edit_btn.config(state="disabled")
+            self.points_listbox.selection_clear(0, tk.END)
+            return
+        index = max(0, min(index, len(self.points) - 1))
+        self.selected_index = index
+        self.points_listbox.selection_clear(0, tk.END)
+        self.points_listbox.selection_set(index)
+        self.points_listbox.activate(index)
+        self.points_listbox.see(index)
+        self.edit_btn.config(state="normal")
 
     def setup_ui(self):
         style = ttk.Style()
@@ -144,6 +159,7 @@ class AutoClicker:
         tk.Label(self.root, text="Auto Clicker", font=("Segoe UI", 15, "bold"),
                  bg="#1e1e2e", fg="#89b4fa").pack(pady=(6, 3))
 
+        # Defaults
         settings_frame = ttk.LabelFrame(self.root, text=" Defaults for New Points ", padding=5)
         settings_frame.pack(fill="x", padx=10, pady=2)
 
@@ -174,6 +190,7 @@ class AutoClicker:
         ttk.Spinbox(row2, from_=0, to=10000, textvariable=self.pt_delay_var, width=7,
                     validate="key", validatecommand=vcmd).pack(side="left")
 
+        # Points List
         points_frame = ttk.LabelFrame(self.root, text=" Points Sequence (Drag items to reorder) ", padding=5)
         points_frame.pack(fill="x", padx=10, pady=2)
 
@@ -198,7 +215,8 @@ class AutoClicker:
         ttk.Button(btn_row, text="Add Click", command=lambda: self.start_add_point("click")).pack(side="left", expand=True, fill="x", padx=(0, 2))
         ttk.Button(btn_row, text="Add Drag", command=lambda: self.start_add_point("drag")).pack(side="left", expand=True, fill="x", padx=2)
         ttk.Button(btn_row, text="Add Wait", command=self.add_wait).pack(side="left", expand=True, fill="x", padx=2)
-        ttk.Button(btn_row, text="Add Key", command=self.add_key_action).pack(side="left", expand=True, fill="x", padx=(2, 0))
+        ttk.Button(btn_row, text="Add Key", command=self.add_key_action).pack(side="left", expand=True, fill="x", padx=2)
+        ttk.Button(btn_row, text="Add Scroll", command=self.add_scroll_action).pack(side="left", expand=True, fill="x", padx=(2, 0))
 
         btn_row2 = tk.Frame(points_frame, bg="#1e1e2e")
         btn_row2.pack(fill="x", pady=(3, 0))
@@ -219,35 +237,61 @@ class AutoClicker:
         ttk.Button(btn_row2, text="Remove", command=self.remove_point).pack(side="left", expand=True, fill="x", padx=2)
         ttk.Button(btn_row2, text="Clear", command=self.clear_points).pack(side="left", expand=True, fill="x", padx=(2, 0))
 
-        global_frame = ttk.LabelFrame(self.root, text=" Global Settings ", padding=5)
+        # ── Global Settings (improved layout) ──
+        global_frame = ttk.LabelFrame(self.root, text=" Global Settings ", padding=8)
         global_frame.pack(fill="x", padx=10, pady=2)
 
-        rowg1 = tk.Frame(global_frame, bg="#1e1e2e")
-        rowg1.pack(fill="x", pady=1)
-        tk.Label(rowg1, text="Random Time ±ms:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        # Row 1: Randomness
+        g_row1 = tk.Frame(global_frame, bg="#1e1e2e")
+        g_row1.pack(fill="x", pady=(0, 4))
+
+        rand_box = tk.Frame(g_row1, bg="#313244", padx=8, pady=4)
+        rand_box.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        tk.Label(rand_box, text="⏱  Random Time", bg="#313244", fg="#a6adc8",
+                 font=("Segoe UI", 8)).pack(anchor="w")
+        rt = tk.Frame(rand_box, bg="#313244")
+        rt.pack(fill="x")
         self.random_var = tk.IntVar(value=0)
-        ttk.Spinbox(rowg1, from_=0, to=500, textvariable=self.random_var, width=5,
-                    validate="key", validatecommand=vcmd).pack(side="left", padx=(3, 12))
-        tk.Label(rowg1, text="Random Position ±px:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        ttk.Spinbox(rt, from_=0, to=500, textvariable=self.random_var, width=6,
+                    validate="key", validatecommand=vcmd).pack(side="left")
+        tk.Label(rt, text=" ±ms", bg="#313244", fg="#6c7086", font=("Segoe UI", 8)).pack(side="left")
+
+        pos_box = tk.Frame(g_row1, bg="#313244", padx=8, pady=4)
+        pos_box.pack(side="left", fill="x", expand=True, padx=(4, 0))
+        tk.Label(pos_box, text="🎯  Random Position", bg="#313244", fg="#a6adc8",
+                 font=("Segoe UI", 8)).pack(anchor="w")
+        rp = tk.Frame(pos_box, bg="#313244")
+        rp.pack(fill="x")
         self.pos_random_var = tk.IntVar(value=0)
-        ttk.Spinbox(rowg1, from_=0, to=50, textvariable=self.pos_random_var, width=4,
-                    validate="key", validatecommand=vcmd).pack(side="left", padx=(3, 0))
+        ttk.Spinbox(rp, from_=0, to=50, textvariable=self.pos_random_var, width=6,
+                    validate="key", validatecommand=vcmd).pack(side="left")
+        tk.Label(rp, text=" ±px", bg="#313244", fg="#6c7086", font=("Segoe UI", 8)).pack(side="left")
 
-        rowg2 = tk.Frame(global_frame, bg="#1e1e2e")
-        rowg2.pack(fill="x", pady=2)
-        tk.Label(rowg2, text="Cycles:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        # Row 2: Cycles + options
+        g_row2 = tk.Frame(global_frame, bg="#1e1e2e")
+        g_row2.pack(fill="x", pady=(0, 2))
+
+        cyc_box = tk.Frame(g_row2, bg="#313244", padx=8, pady=4)
+        cyc_box.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        tk.Label(cyc_box, text="🔄  Cycles", bg="#313244", fg="#a6adc8",
+                 font=("Segoe UI", 8)).pack(anchor="w")
+        cy = tk.Frame(cyc_box, bg="#313244")
+        cy.pack(fill="x")
         self.rep_var = tk.IntVar(value=1)
-        self.rep_spin = ttk.Spinbox(rowg2, from_=1, to=99999, textvariable=self.rep_var, width=6,
+        self.rep_spin = ttk.Spinbox(cy, from_=1, to=99999, textvariable=self.rep_var, width=6,
                                     validate="key", validatecommand=vcmd)
-        self.rep_spin.pack(side="left", padx=(3, 12))
-        ttk.Checkbutton(rowg2, text="Infinite", variable=self.infinite,
-                        command=self.toggle_infinite).pack(side="left")
+        self.rep_spin.pack(side="left")
+        ttk.Checkbutton(cy, text="Infinite", variable=self.infinite,
+                        command=self.toggle_infinite).pack(side="left", padx=(10, 0))
 
-        rowg3 = tk.Frame(global_frame, bg="#1e1e2e")
-        rowg3.pack(fill="x", pady=2)
-        ttk.Checkbutton(rowg3, text="Always on Top", variable=self.always_on_top,
-                        command=self.toggle_topmost).pack(side="left")
+        opt_box = tk.Frame(g_row2, bg="#313244", padx=8, pady=4)
+        opt_box.pack(side="left", fill="both", expand=True, padx=(4, 0))
+        tk.Label(opt_box, text="⚙  Options", bg="#313244", fg="#a6adc8",
+                 font=("Segoe UI", 8)).pack(anchor="w")
+        ttk.Checkbutton(opt_box, text="Always on Top", variable=self.always_on_top,
+                        command=self.toggle_topmost).pack(anchor="w")
 
+        # Hotkeys
         hotkey_frame = ttk.LabelFrame(self.root, text=" Hotkeys ", padding=5)
         hotkey_frame.pack(fill="x", padx=10, pady=2)
 
@@ -274,6 +318,7 @@ class AutoClicker:
         self.record_stop_hk_label.pack(side="left")
         ttk.Button(hk3, text="Change", width=7, command=lambda: self.change_hotkey("record_stop")).pack(side="left", padx=4)
 
+        # Profile
         profile_frame = tk.Frame(self.root, bg="#1e1e2e")
         profile_frame.pack(fill="x", padx=10, pady=3)
         ttk.Button(profile_frame, text="Save Profile", command=self.save_profile).pack(side="left", expand=True, fill="x", padx=(0, 3))
@@ -300,12 +345,8 @@ class AutoClicker:
                  bg="#1e1e2e", fg="#6c7086").pack(side="right")
 
     def bind_list_shortcuts(self):
-        """Keyboard shortcuts for the points list (cross-platform)."""
-        # Delete
         self.points_listbox.bind("<Delete>", lambda e: self.on_list_delete(e))
         self.root.bind("<Delete>", lambda e: self.on_list_delete(e))
-
-        # Copy / Cut / Paste — Windows & Linux (Control) + macOS (Command)
         for mod in ("Control", "Command"):
             self.root.bind(f"<{mod}-c>", lambda e: self.on_list_copy(e))
             self.root.bind(f"<{mod}-C>", lambda e: self.on_list_copy(e))
@@ -335,11 +376,16 @@ class AutoClicker:
             return
         if self.selected_index is None or self.selected_index >= len(self.points):
             return
-        self.clipboard_point = copy.deepcopy(self.points[self.selected_index])
-        del self.points[self.selected_index]
-        self.selected_index = None
-        self.edit_btn.config(state="disabled")
+        idx = self.selected_index
+        self.clipboard_point = copy.deepcopy(self.points[idx])
+        del self.points[idx]
         self.refresh_points_list()
+        # Stay on the same index (which is now the next item), or last if we cut the last
+        if self.points:
+            self.select_index(idx)
+        else:
+            self.selected_index = None
+            self.edit_btn.config(state="disabled")
         self.status_label.config(text="Item cut", fg="#f9e2af")
         return "break"
 
@@ -350,19 +396,13 @@ class AutoClicker:
             self.status_label.config(text="Clipboard empty", fg="#f38ba8")
             return "break"
         new_item = copy.deepcopy(self.clipboard_point)
-        # Insert after the currently selected item (or at end if nothing selected)
         if self.selected_index is not None and 0 <= self.selected_index < len(self.points):
             insert_at = self.selected_index + 1
         else:
             insert_at = len(self.points)
         self.points.insert(insert_at, new_item)
         self.refresh_points_list()
-        self.selected_index = insert_at
-        self.points_listbox.selection_clear(0, tk.END)
-        self.points_listbox.selection_set(insert_at)
-        self.points_listbox.activate(insert_at)
-        self.points_listbox.see(insert_at)
-        self.edit_btn.config(state="normal")
+        self.select_index(insert_at)
         self.status_label.config(text="Item pasted", fg="#a6e3a1")
         return "break"
 
@@ -499,7 +539,6 @@ class AutoClicker:
             return None
 
     def _move_preview(self, preview_win, x_var, y_var):
-        """Live-update a preview window position from IntVars."""
         if preview_win is None:
             return
         try:
@@ -721,8 +760,7 @@ class AutoClicker:
                     p["type"] = entries["type"].get()
                     p["delay_after"] = int(entries["delay_after"].get())
                 self.refresh_points_list()
-                self.points_listbox.selection_set(self.selected_index)
-                self.points_listbox.activate(self.selected_index)
+                self.select_index(self.selected_index)
                 self.status_label.config(text="Item updated", fg="#a6e3a1")
                 self.clear_previews()
                 popup.destroy()
@@ -742,11 +780,149 @@ class AutoClicker:
     def add_wait(self):
         if self.is_running or self.is_recording:
             return
-        delay = self.get_safe_int(self.pt_delay_var, 500, 1, 60000)
-        point = {"action": "wait", "delay": delay, "name": ""}
-        self.points.append(point)
-        self.refresh_points_list()
-        self.status_label.config(text=f"Wait {delay}ms added", fg="#a6e3a1")
+        popup = tk.Toplevel(self.root)
+        popup.title("Add Wait")
+        popup.configure(bg="#1e1e2e")
+        popup.resizable(False, False)
+        popup.transient(self.root)
+        popup.grab_set()
+
+        vcmd = (popup.register(self.validate_number), "%d", "%P")
+
+        tk.Label(popup, text="Wait Duration", font=("Segoe UI", 11, "bold"),
+                 bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 8))
+
+        row = tk.Frame(popup, bg="#1e1e2e")
+        row.pack(padx=20, pady=4)
+        tk.Label(row, text="Duration (ms):", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        delay_var = tk.IntVar(value=500)
+        ttk.Spinbox(row, from_=1, to=60000, textvariable=delay_var, width=10,
+                    validate="key", validatecommand=vcmd).pack(side="left", padx=(8, 0))
+
+        def apply():
+            try:
+                delay = max(1, int(delay_var.get()))
+            except Exception:
+                delay = 500
+            point = {"action": "wait", "delay": delay, "name": ""}
+            self.points.append(point)
+            self.refresh_points_list()
+            self.select_index(len(self.points) - 1)
+            self.status_label.config(text=f"Wait {delay}ms added", fg="#a6e3a1")
+            popup.destroy()
+
+        btn_row = tk.Frame(popup, bg="#1e1e2e")
+        btn_row.pack(pady=12)
+        ttk.Button(btn_row, text="Add", command=apply, width=8).pack(side="left", padx=4)
+        ttk.Button(btn_row, text="Cancel", command=popup.destroy, width=8).pack(side="left", padx=4)
+
+        popup.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (popup.winfo_width() // 2)
+        y = self.root.winfo_y() + 100
+        popup.geometry(f"+{x}+{y}")
+        popup.bind("<Return>", lambda e: apply())
+
+    def add_scroll_action(self):
+        if self.is_running or self.is_recording:
+            return
+        popup = tk.Toplevel(self.root)
+        popup.title("Add Scroll")
+        popup.configure(bg="#1e1e2e")
+        popup.resizable(False, False)
+        popup.transient(self.root)
+        popup.grab_set()
+
+        vcmd = (popup.register(self.validate_number), "%d", "%P")
+
+        tk.Label(popup, text="Add Mouse Scroll", font=("Segoe UI", 11, "bold"),
+                 bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 6))
+        tk.Label(popup, text="Click on screen to capture position, or enter manually",
+                 bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
+
+        frame = tk.Frame(popup, bg="#1e1e2e")
+        frame.pack(padx=15, pady=8)
+
+        tk.Label(frame, text="X:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
+        var_x = tk.IntVar(value=0)
+        ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_x, width=10,
+                    validate="key", validatecommand=vcmd).grid(row=0, column=1, pady=2, padx=5)
+
+        tk.Label(frame, text="Y:", bg="#1e1e2e", fg="#cdd6f4").grid(row=1, column=0, sticky="w", pady=2)
+        var_y = tk.IntVar(value=0)
+        ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_y, width=10,
+                    validate="key", validatecommand=vcmd).grid(row=1, column=1, pady=2, padx=5)
+
+        tk.Label(frame, text="Direction:", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
+        dir_var = tk.StringVar(value="UP")
+        dir_combo = ttk.Combobox(frame, textvariable=dir_var,
+                                 values=["UP", "DOWN", "LEFT", "RIGHT"],
+                                 state="readonly", width=8)
+        dir_combo.grid(row=2, column=1, pady=2, padx=5)
+
+        tk.Label(frame, text="Amount:", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=2)
+        amount_var = tk.IntVar(value=3)
+        ttk.Spinbox(frame, from_=1, to=20, textvariable=amount_var, width=10,
+                    validate="key", validatecommand=vcmd).grid(row=3, column=1, pady=2, padx=5)
+
+        def capture_pos():
+            self.status_label.config(text="Click to set scroll position...", fg="#f9e2af")
+            self.minimize_for_capture()
+
+            def on_click(x, y, button, pressed):
+                if button == Button.left and pressed:
+                    self.root.after(0, lambda: var_x.set(x))
+                    self.root.after(0, lambda: var_y.set(y))
+                    self.root.after(0, self.restore_after_capture)
+                    self.root.after(0, lambda: self.status_label.config(text="Position captured", fg="#a6e3a1"))
+                    return False
+                return True
+
+            listener = mouse.Listener(on_click=on_click)
+            listener.start()
+
+        def apply():
+            try:
+                x = int(var_x.get())
+                y = int(var_y.get())
+                amount = max(1, int(amount_var.get()))
+            except Exception:
+                messagebox.showerror("Error", "Invalid values", parent=popup)
+                return
+            direction = dir_var.get()
+            dx, dy = 0, 0
+            if direction == "UP":
+                dy = amount
+            elif direction == "DOWN":
+                dy = -amount
+            elif direction == "LEFT":
+                dx = -amount
+            elif direction == "RIGHT":
+                dx = amount
+            defaults = self.get_current_defaults()
+            point = {
+                "action": "scroll",
+                "x": x, "y": y,
+                "dx": dx, "dy": dy,
+                "count": defaults["count"],
+                "delay_after": defaults["delay_after"],
+                "name": ""
+            }
+            self.points.append(point)
+            self.refresh_points_list()
+            self.select_index(len(self.points) - 1)
+            self.status_label.config(text=f"Scroll {direction} added", fg="#a6e3a1")
+            popup.destroy()
+
+        btn_row = tk.Frame(popup, bg="#1e1e2e")
+        btn_row.pack(pady=10)
+        ttk.Button(btn_row, text="Capture Pos", command=capture_pos, width=11).pack(side="left", padx=3)
+        ttk.Button(btn_row, text="Add", command=apply, width=8).pack(side="left", padx=3)
+        ttk.Button(btn_row, text="Cancel", command=popup.destroy, width=8).pack(side="left", padx=3)
+
+        popup.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (popup.winfo_width() // 2)
+        y = self.root.winfo_y() + 80
+        popup.geometry(f"+{x}+{y}")
 
     def add_key_action(self):
         if self.is_running or self.is_recording:
@@ -799,6 +975,7 @@ class AutoClicker:
             }
             self.points.append(point)
             self.refresh_points_list()
+            self.select_index(len(self.points) - 1)
             self.status_label.config(text=f"Key '{k}' added", fg="#a6e3a1")
             popup.destroy()
 
@@ -888,6 +1065,7 @@ class AutoClicker:
                 pass
             self.click_listener = None
         self.refresh_points_list()
+        self.select_index(len(self.points) - 1)
         self.restore_after_capture()
         self.status_label.config(text=message, fg="#a6e3a1")
 
@@ -1041,6 +1219,8 @@ class AutoClicker:
         added = len(self.points) - count_before
         self.record_events = []
         self.refresh_points_list()
+        if self.points:
+            self.select_index(len(self.points) - 1)
         self.restore_after_capture()
         self.record_btn.config(text="Record")
         self.set_record_indicator(False)
@@ -1051,28 +1231,29 @@ class AutoClicker:
             return
         i = self.selected_index
         self.points[i], self.points[i - 1] = self.points[i - 1], self.points[i]
-        self.selected_index = i - 1
         self.refresh_points_list()
-        self.points_listbox.selection_set(self.selected_index)
-        self.edit_btn.config(state="normal")
+        self.select_index(i - 1)
 
     def move_down(self):
         if self.selected_index is None or self.selected_index >= len(self.points) - 1 or self.is_running or self.is_recording:
             return
         i = self.selected_index
         self.points[i], self.points[i + 1] = self.points[i + 1], self.points[i]
-        self.selected_index = i + 1
         self.refresh_points_list()
-        self.points_listbox.selection_set(self.selected_index)
-        self.edit_btn.config(state="normal")
+        self.select_index(i + 1)
 
     def remove_point(self):
         if self.is_running or self.is_recording or self.selected_index is None:
             return
-        del self.points[self.selected_index]
-        self.selected_index = None
-        self.edit_btn.config(state="disabled")
+        idx = self.selected_index
+        del self.points[idx]
         self.refresh_points_list()
+        if self.points:
+            # Stay on same index (now the next item), or last if we deleted the last
+            self.select_index(idx)
+        else:
+            self.selected_index = None
+            self.edit_btn.config(state="disabled")
         self.status_label.config(text="Point removed", fg="#f9e2af")
 
     def clear_points(self):

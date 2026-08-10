@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 import time
+import ctypes
 from pynput import mouse, keyboard
 from pynput.mouse import Button, Controller as MouseController
 from pynput.keyboard import Key, Listener as KeyboardListener
@@ -15,7 +16,7 @@ class AutoClicker:
         self.root.configure(bg="#1e1e2e")
 
         # Version
-        self.version = "v1.1"
+        self.version = "v1.2"
 
         # State
         self.coords = None
@@ -25,7 +26,7 @@ class AutoClicker:
         self.g_hotkey_enabled = tk.BooleanVar(value=True)
         self.infinite = tk.BooleanVar(value=False)
 
-        # Hotkeys (lowercase)
+        # Hotkeys (always English lowercase)
         self.start_hotkey = "g"
         self.stop_hotkey = "s"
 
@@ -34,8 +35,20 @@ class AutoClicker:
         self.keyboard_listener = None
         self.waiting_for_hotkey = None  # "start" or "stop"
 
+        # Force English keyboard layout
+        self.force_english_keyboard()
+        self.root.bind("<FocusIn>", lambda e: self.force_english_keyboard())
+
         self.setup_ui()
         self.start_keyboard_listener()
+
+    def force_english_keyboard(self):
+        """Force the keyboard layout to English (US)"""
+        try:
+            # 00000409 = English (United States)
+            ctypes.windll.user32.LoadKeyboardLayoutW("00000409", 1)
+        except Exception:
+            pass
 
     def setup_ui(self):
         style = ttk.Style()
@@ -182,9 +195,10 @@ class AutoClicker:
         self.set_coordinates()
 
     def change_hotkey(self, which):
-        """Wait for the next key press to set a new hotkey"""
+        """Wait for the next key press to set a new hotkey (English only)"""
+        self.force_english_keyboard()
         self.waiting_for_hotkey = which
-        self.status_label.config(text=f"Press a key to set new {which.upper()} hotkey...", fg="#f9e2af")
+        self.status_label.config(text=f"Press an English key to set new {which.upper()} hotkey...", fg="#f9e2af")
 
     def start_keyboard_listener(self):
         def on_press(key):
@@ -197,12 +211,11 @@ class AutoClicker:
                     elif key == Key.space:
                         char = "space"
                     elif key == Key.esc:
-                        # Cancel changing
                         self.waiting_for_hotkey = None
                         self.status_label.config(text="Hotkey change cancelled", fg="#f9e2af")
                         return
 
-                    if char:
+                    if char and char.isascii() and char.isalpha():  # Only accept English letters
                         if self.waiting_for_hotkey == "start":
                             if char == self.stop_hotkey:
                                 self.status_label.config(text="Cannot use the same key for Start and Stop!", fg="#f38ba8")
@@ -220,6 +233,8 @@ class AutoClicker:
 
                         self.status_label.config(text=f"{self.waiting_for_hotkey.capitalize()} hotkey set to: {char.upper()}", fg="#a6e3a1")
                         self.waiting_for_hotkey = None
+                    else:
+                        self.status_label.config(text="Only English letters are allowed!", fg="#f38ba8")
                     return
 
                 # Normal hotkey handling

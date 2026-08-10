@@ -13,13 +13,11 @@ class AutoClicker:
     def __init__(self, root):
         self.root = root
         self.root.title("Auto Clicker")
-        self.root.geometry("470x620")
-        self.root.resizable(False, False)
         self.root.configure(bg="#1e1e2e")
+        self.root.resizable(False, False)
 
-        self.version = "v2.2"
+        self.version = "v2.3"
 
-        # State
         self.points = []
         self.selected_index = None
         self.is_running = False
@@ -43,6 +41,12 @@ class AutoClicker:
 
         self.setup_ui()
         self.start_keyboard_listener()
+
+        # Smart height: fit content exactly
+        self.root.update_idletasks()
+        width = 470
+        height = self.root.winfo_reqheight()
+        self.root.geometry(f"{width}x{height}")
 
     def force_english_keyboard(self):
         try:
@@ -76,14 +80,15 @@ class AutoClicker:
 
         # Title
         tk.Label(self.root, text="Auto Clicker", font=("Segoe UI", 15, "bold"),
-                 bg="#1e1e2e", fg="#89b4fa").pack(pady=(6, 2))
+                 bg="#1e1e2e", fg="#89b4fa").pack(pady=(6, 3))
 
-        # ========== Default / Selected Point Settings ==========
-        self.point_settings_frame = ttk.LabelFrame(self.root, text=" Point Settings (defaults for new points) ", padding=5)
-        self.point_settings_frame.pack(fill="x", padx=10, pady=2)
+        # ========== Point Settings ==========
+        settings_frame = ttk.LabelFrame(self.root, text=" Point Settings ", padding=5)
+        settings_frame.pack(fill="x", padx=10, pady=2)
 
-        row1 = tk.Frame(self.point_settings_frame, bg="#1e1e2e")
+        row1 = tk.Frame(settings_frame, bg="#1e1e2e")
         row1.pack(fill="x", pady=1)
+
         tk.Label(row1, text="Hold (ms):", bg="#1e1e2e", fg="#cdd6f4", width=11, anchor="w").pack(side="left")
         self.pt_hold_var = tk.IntVar(value=50)
         ttk.Spinbox(row1, from_=10, to=2000, textvariable=self.pt_hold_var, width=7,
@@ -96,15 +101,20 @@ class AutoClicker:
 
         tk.Label(row1, text="  Type:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left", padx=(6, 0))
         self.pt_type_var = tk.StringVar(value="Left")
-        ttk.Combobox(row1, textvariable=self.pt_type_var, values=["Left", "Right", "Double", "Middle"],
+        ttk.Combobox(row1, textvariable=self.pt_type_var,
+                     values=["Left", "Right", "Double", "Middle"],
                      state="readonly", width=7).pack(side="left")
 
-        row2 = tk.Frame(self.point_settings_frame, bg="#1e1e2e")
+        row2 = tk.Frame(settings_frame, bg="#1e1e2e")
         row2.pack(fill="x", pady=1)
+
         tk.Label(row2, text="Delay After (ms):", bg="#1e1e2e", fg="#cdd6f4", width=11, anchor="w").pack(side="left")
         self.pt_delay_var = tk.IntVar(value=100)
         ttk.Spinbox(row2, from_=0, to=10000, textvariable=self.pt_delay_var, width=7,
                     validate="key", validatecommand=vcmd).pack(side="left")
+
+        self.apply_btn = ttk.Button(row2, text="Apply to Selected", command=self.apply_to_selected, state="disabled")
+        self.apply_btn.pack(side="right", padx=(10, 0))
 
         # ========== Points List ==========
         points_frame = ttk.LabelFrame(self.root, text=" Points Sequence ", padding=5)
@@ -143,18 +153,19 @@ class AutoClicker:
         tk.Label(rowg, text="Random Time ±ms:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
         self.random_var = tk.IntVar(value=0)
         ttk.Spinbox(rowg, from_=0, to=500, textvariable=self.random_var, width=5,
-                    validate="key", validatecommand=vcmd).pack(side="left", padx=(2, 8))
+                    validate="key", validatecommand=vcmd).pack(side="left", padx=(3, 10))
 
         tk.Label(rowg, text="Pos ±px:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
         self.pos_random_var = tk.IntVar(value=0)
         ttk.Spinbox(rowg, from_=0, to=50, textvariable=self.pos_random_var, width=4,
-                    validate="key", validatecommand=vcmd).pack(side="left", padx=(2, 8))
+                    validate="key", validatecommand=vcmd).pack(side="left", padx=(3, 10))
 
         tk.Label(rowg, text="Cycles:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
         self.rep_var = tk.IntVar(value=1)
         self.rep_spin = ttk.Spinbox(rowg, from_=1, to=99999, textvariable=self.rep_var, width=5,
                                     validate="key", validatecommand=vcmd)
-        self.rep_spin.pack(side="left", padx=(2, 4))
+        self.rep_spin.pack(side="left", padx=(3, 6))
+
         ttk.Checkbutton(rowg, text="Infinite", variable=self.infinite,
                         command=self.toggle_infinite).pack(side="left")
 
@@ -163,24 +174,27 @@ class AutoClicker:
         ttk.Checkbutton(rowg2, text="Always on Top", variable=self.always_on_top,
                         command=self.toggle_topmost).pack(side="left")
 
-        # ========== Hotkeys ==========
+        # ========== Hotkeys (separated) ==========
         hotkey_frame = ttk.LabelFrame(self.root, text=" Hotkeys ", padding=5)
         hotkey_frame.pack(fill="x", padx=10, pady=2)
 
-        hk = tk.Frame(hotkey_frame, bg="#1e1e2e")
-        hk.pack(fill="x")
-
-        self.start_hk_label = tk.Label(hk, text=f"Start: {self.start_hotkey.upper()}",
-                                       bg="#1e1e2e", fg="#cdd6f4", width=11, anchor="w")
+        # Start row
+        hk1 = tk.Frame(hotkey_frame, bg="#1e1e2e")
+        hk1.pack(fill="x", pady=1)
+        self.start_hk_label = tk.Label(hk1, text=f"Start Hotkey:  {self.start_hotkey.upper()}",
+                                       bg="#1e1e2e", fg="#cdd6f4", width=18, anchor="w")
         self.start_hk_label.pack(side="left")
-        ttk.Button(hk, text="Change", width=6, command=lambda: self.change_hotkey("start")).pack(side="left", padx=2)
-        ttk.Checkbutton(hk, text="On", variable=self.g_hotkey_enabled).pack(side="left", padx=(0, 10))
+        ttk.Button(hk1, text="Change", width=7, command=lambda: self.change_hotkey("start")).pack(side="left", padx=4)
+        ttk.Checkbutton(hk1, text="Enable", variable=self.g_hotkey_enabled).pack(side="left")
 
-        self.stop_hk_label = tk.Label(hk, text=f"Stop: {self.stop_hotkey.upper()}",
-                                      bg="#1e1e2e", fg="#cdd6f4", width=11, anchor="w")
+        # Stop row
+        hk2 = tk.Frame(hotkey_frame, bg="#1e1e2e")
+        hk2.pack(fill="x", pady=1)
+        self.stop_hk_label = tk.Label(hk2, text=f"Stop Hotkey:   {self.stop_hotkey.upper()}",
+                                      bg="#1e1e2e", fg="#cdd6f4", width=18, anchor="w")
         self.stop_hk_label.pack(side="left")
-        ttk.Button(hk, text="Change", width=6, command=lambda: self.change_hotkey("stop")).pack(side="left", padx=2)
-        ttk.Checkbutton(hk, text="On", variable=self.s_hotkey_enabled).pack(side="left")
+        ttk.Button(hk2, text="Change", width=7, command=lambda: self.change_hotkey("stop")).pack(side="left", padx=4)
+        ttk.Checkbutton(hk2, text="Enable", variable=self.s_hotkey_enabled).pack(side="left")
 
         # ========== Profile + Actions ==========
         profile_frame = tk.Frame(self.root, bg="#1e1e2e")
@@ -199,7 +213,7 @@ class AutoClicker:
 
         # Status
         bottom = tk.Frame(self.root, bg="#1e1e2e")
-        bottom.pack(side="bottom", fill="x", padx=10, pady=5)
+        bottom.pack(fill="x", padx=10, pady=(4, 6))
         self.status_label = tk.Label(bottom, text="Ready", font=("Segoe UI", 9),
                                      bg="#1e1e2e", fg="#f9e2af")
         self.status_label.pack(side="left")
@@ -207,7 +221,6 @@ class AutoClicker:
                  bg="#1e1e2e", fg="#6c7086").pack(side="right")
 
     def get_current_defaults(self):
-        """Read current values from the settings panel to use as defaults for new points"""
         return {
             "hold": self.get_safe_int(self.pt_hold_var, 50, 10, 2000),
             "count": self.get_safe_int(self.pt_count_var, 1, 1, 100),
@@ -219,28 +232,36 @@ class AutoClicker:
         sel = self.points_listbox.curselection()
         if not sel:
             self.selected_index = None
+            self.apply_btn.config(state="disabled")
             return
+
         self.selected_index = sel[0]
         p = self.points[self.selected_index]
+
         self.pt_hold_var.set(p.get("hold", 50))
         self.pt_count_var.set(p.get("count", 1))
         self.pt_delay_var.set(p.get("delay_after", 100))
         self.pt_type_var.set(p.get("type", "Left"))
 
+        self.apply_btn.config(state="normal")
+
     def apply_to_selected(self):
-        """If a point is selected, update it with current panel values"""
         if self.selected_index is None or self.selected_index >= len(self.points):
             return
+
         p = self.points[self.selected_index]
         defaults = self.get_current_defaults()
         p["hold"] = defaults["hold"]
         p["count"] = defaults["count"]
         p["delay_after"] = defaults["delay_after"]
         p["type"] = defaults["type"]
+
         self.refresh_points_list()
+        # Keep selection
         self.points_listbox.selection_clear(0, tk.END)
         self.points_listbox.selection_set(self.selected_index)
         self.points_listbox.activate(self.selected_index)
+        self.status_label.config(text="Changes applied to selected point", fg="#a6e3a1")
 
     def refresh_points_list(self):
         self.points_listbox.delete(0, tk.END)
@@ -254,12 +275,10 @@ class AutoClicker:
     def start_add_point(self, mode):
         if self.is_running:
             return
-        # Apply current panel values to selected point first (if any)
-        self.apply_to_selected()
 
         self.adding_mode = mode
         if mode == "click":
-            self.status_label.config(text="Click to add CLICK point (using current settings)...", fg="#f9e2af")
+            self.status_label.config(text="Click to add a new CLICK point...", fg="#f9e2af")
         else:
             self.status_label.config(text="Click START position of DRAG...", fg="#f9e2af")
 
@@ -277,7 +296,7 @@ class AutoClicker:
                 }
                 self.points.append(point)
                 self.refresh_points_list()
-                self.status_label.config(text=f"Click point added ({x},{y})", fg="#a6e3a1")
+                self.status_label.config(text=f"New click point added ({x},{y})", fg="#a6e3a1")
                 self.adding_mode = None
                 return False
 
@@ -294,14 +313,14 @@ class AutoClicker:
                     "y": self.temp_drag_start[1],
                     "drag_x": x,
                     "drag_y": y,
-                    "hold": defaults["hold"],      # used as drag duration
+                    "hold": defaults["hold"],
                     "count": 1,
                     "delay_after": defaults["delay_after"],
                     "type": "Left"
                 }
                 self.points.append(point)
                 self.refresh_points_list()
-                self.status_label.config(text=f"Drag added", fg="#a6e3a1")
+                self.status_label.config(text="New drag point added", fg="#a6e3a1")
                 self.adding_mode = None
                 return False
 
@@ -333,6 +352,7 @@ class AutoClicker:
             return
         del self.points[self.selected_index]
         self.selected_index = None
+        self.apply_btn.config(state="disabled")
         self.refresh_points_list()
         self.status_label.config(text="Point removed", fg="#f9e2af")
 
@@ -341,6 +361,7 @@ class AutoClicker:
             return
         self.points.clear()
         self.selected_index = None
+        self.apply_btn.config(state="disabled")
         self.refresh_points_list()
         self.status_label.config(text="All points cleared", fg="#f9e2af")
 
@@ -373,14 +394,14 @@ class AutoClicker:
                                 self.waiting_for_hotkey = None
                                 return
                             self.start_hotkey = char
-                            self.start_hk_label.config(text=f"Start: {char.upper()}")
+                            self.start_hk_label.config(text=f"Start Hotkey:  {char.upper()}")
                         else:
                             if char == self.start_hotkey:
                                 self.status_label.config(text="Same key not allowed!", fg="#f38ba8")
                                 self.waiting_for_hotkey = None
                                 return
                             self.stop_hotkey = char
-                            self.stop_hk_label.config(text=f"Stop: {char.upper()}")
+                            self.stop_hk_label.config(text=f"Stop Hotkey:   {char.upper()}")
                         self.status_label.config(text=f"Hotkey → {char.upper()}", fg="#a6e3a1")
                         self.waiting_for_hotkey = None
                     return
@@ -413,9 +434,6 @@ class AutoClicker:
             return
         if self.is_running:
             return
-
-        # Apply any pending changes to selected point
-        self.apply_to_selected()
 
         self.is_running = True
         self.stop_flag = False
@@ -523,7 +541,6 @@ class AutoClicker:
         self.status_label.config(text="Stopping...", fg="#f9e2af")
 
     def save_profile(self):
-        self.apply_to_selected()
         data = {
             "points": self.points,
             "random": self.random_var.get(),
@@ -535,7 +552,6 @@ class AutoClicker:
             "start_enabled": self.g_hotkey_enabled.get(),
             "stop_enabled": self.s_hotkey_enabled.get(),
             "always_on_top": self.always_on_top.get(),
-            # also save current defaults
             "defaults": self.get_current_defaults()
         }
         path = filedialog.asksaveasfilename(defaultextension=".json",
@@ -567,8 +583,8 @@ class AutoClicker:
             self.toggle_infinite()
             self.start_hotkey = data.get("start_hotkey", "g")
             self.stop_hotkey = data.get("stop_hotkey", "s")
-            self.start_hk_label.config(text=f"Start: {self.start_hotkey.upper()}")
-            self.stop_hk_label.config(text=f"Stop: {self.stop_hotkey.upper()}")
+            self.start_hk_label.config(text=f"Start Hotkey:  {self.start_hotkey.upper()}")
+            self.stop_hk_label.config(text=f"Stop Hotkey:   {self.stop_hotkey.upper()}")
             self.g_hotkey_enabled.set(data.get("start_enabled", True))
             self.s_hotkey_enabled.set(data.get("stop_enabled", True))
             self.always_on_top.set(data.get("always_on_top", False))
@@ -581,6 +597,7 @@ class AutoClicker:
             self.pt_type_var.set(defaults.get("type", "Left"))
 
             self.selected_index = None
+            self.apply_btn.config(state="disabled")
             self.status_label.config(text="Profile loaded", fg="#a6e3a1")
         except Exception as e:
             messagebox.showerror("Error", str(e))

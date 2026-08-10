@@ -16,7 +16,7 @@ class AutoClicker:
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
 
-        self.version = "v3.1"
+        self.version = "v3.2"
 
         self.points = []
         self.selected_index = None
@@ -37,8 +37,9 @@ class AutoClicker:
         self.adding_mode = None
         self.temp_drag_start = None
 
-        # For list drag-reorder
+        # For live list drag-reorder
         self.drag_start_index = None
+        self.drag_current_index = None
 
         self.force_english_keyboard()
         self.root.bind("<FocusIn>", lambda e: self.force_english_keyboard())
@@ -145,7 +146,7 @@ class AutoClicker:
         self.points_listbox.bind("<<ListboxSelect>>", self.on_point_select)
         self.points_listbox.bind("<Double-Button-1>", lambda e: self.open_edit_popup())
 
-        # Drag-and-drop reordering
+        # Live Drag-and-drop reordering
         self.points_listbox.bind("<ButtonPress-1>", self.on_list_drag_start)
         self.points_listbox.bind("<B1-Motion>", self.on_list_drag_motion)
         self.points_listbox.bind("<ButtonRelease-1>", self.on_list_drag_drop)
@@ -248,38 +249,50 @@ class AutoClicker:
         tk.Label(bottom, text=self.version, font=("Segoe UI", 8),
                  bg="#1e1e2e", fg="#6c7086").pack(side="right")
 
-    # -------------------- List Drag-and-Drop Reorder --------------------
+    # -------------------- Live List Drag-and-Drop --------------------
     def on_list_drag_start(self, event):
         if self.is_running:
             self.drag_start_index = None
+            self.drag_current_index = None
             return
-        self.drag_start_index = self.points_listbox.nearest(event.y)
+        index = self.points_listbox.nearest(event.y)
+        if 0 <= index < len(self.points):
+            self.drag_start_index = index
+            self.drag_current_index = index
+            self.points_listbox.selection_clear(0, tk.END)
+            self.points_listbox.selection_set(index)
+            self.points_listbox.activate(index)
 
     def on_list_drag_motion(self, event):
-        # Optional visual feedback can be added here
-        pass
-
-    def on_list_drag_drop(self, event):
         if self.is_running or self.drag_start_index is None:
-            self.drag_start_index = None
             return
 
-        drop_index = self.points_listbox.nearest(event.y)
+        new_index = self.points_listbox.nearest(event.y)
+        if new_index == self.drag_current_index:
+            return
+        if not (0 <= new_index < len(self.points)):
+            return
 
-        if drop_index != self.drag_start_index and 0 <= drop_index < len(self.points):
-            # Reorder the data
-            item = self.points.pop(self.drag_start_index)
-            self.points.insert(drop_index, item)
+        # Live reorder
+        item = self.points.pop(self.drag_current_index)
+        self.points.insert(new_index, item)
+        self.drag_current_index = new_index
 
-            self.refresh_points_list()
-            self.selected_index = drop_index
-            self.points_listbox.selection_clear(0, tk.END)
-            self.points_listbox.selection_set(drop_index)
-            self.points_listbox.activate(drop_index)
+        self.refresh_points_list()
+        self.points_listbox.selection_clear(0, tk.END)
+        self.points_listbox.selection_set(new_index)
+        self.points_listbox.activate(new_index)
+        self.points_listbox.see(new_index)
+
+    def on_list_drag_drop(self, event):
+        if self.drag_start_index is not None and self.drag_current_index is not None:
+            self.selected_index = self.drag_current_index
             self.edit_btn.config(state="normal")
-            self.status_label.config(text="Order changed", fg="#a6e3a1")
+            if self.drag_start_index != self.drag_current_index:
+                self.status_label.config(text="Order changed", fg="#a6e3a1")
 
         self.drag_start_index = None
+        self.drag_current_index = None
 
     def get_current_defaults(self):
         return {

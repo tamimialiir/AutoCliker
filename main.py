@@ -16,7 +16,7 @@ class AutoClicker:
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
 
-        self.version = "v2.6"
+        self.version = "v2.7"
 
         self.points = []
         self.selected_index = None
@@ -27,7 +27,6 @@ class AutoClicker:
         self.infinite = tk.BooleanVar(value=False)
         self.always_on_top = tk.BooleanVar(value=False)
 
-        # Default hotkeys changed
         self.start_hotkey = "s"
         self.stop_hotkey = "e"
 
@@ -45,7 +44,7 @@ class AutoClicker:
         self.start_keyboard_listener()
 
         self.root.update_idletasks()
-        self.root.geometry(f"490x{self.root.winfo_reqheight()}")
+        self.root.geometry(f"500x{self.root.winfo_reqheight()}")
 
     def force_english_keyboard(self):
         try:
@@ -67,10 +66,27 @@ class AutoClicker:
     def setup_ui(self):
         style = ttk.Style()
         style.theme_use("clam")
+
+        # --- Stronger Combobox style to prevent fading ---
+        style.configure("TCombobox",
+                        fieldbackground="#313244",
+                        background="#313244",
+                        foreground="#cdd6f4",
+                        arrowcolor="#cdd6f4",
+                        bordercolor="#45475a",
+                        darkcolor="#313244",
+                        lightcolor="#313244",
+                        selectbackground="#313244",
+                        selectforeground="#cdd6f4")
+        style.map("TCombobox",
+                  fieldbackground=[("readonly", "#313244"), ("!disabled", "#313244")],
+                  foreground=[("readonly", "#cdd6f4"), ("!disabled", "#cdd6f4")],
+                  selectbackground=[("readonly", "#313244")],
+                  selectforeground=[("readonly", "#cdd6f4")])
+
         style.configure("TButton", padding=3, font=("Segoe UI", 9))
         style.configure("TLabel", background="#1e1e2e", foreground="#cdd6f4", font=("Segoe UI", 9))
         style.configure("TCheckbutton", background="#1e1e2e", foreground="#cdd6f4", font=("Segoe UI", 9))
-        style.configure("TCombobox", fieldbackground="#313244", foreground="#cdd6f4")
         style.configure("TSpinbox", fieldbackground="#313244", foreground="#cdd6f4")
         style.configure("TLabelframe", background="#1e1e2e", foreground="#89b4fa")
         style.configure("TLabelframe.Label", background="#1e1e2e", foreground="#89b4fa", font=("Segoe UI", 9, "bold"))
@@ -102,9 +118,9 @@ class AutoClicker:
         self.pt_type_var = tk.StringVar(value="Left")
         self.pt_type_combo = ttk.Combobox(row1, textvariable=self.pt_type_var,
                                           values=["Left", "Right", "Double", "Middle"],
-                                          state="readonly", width=7)
+                                          state="readonly", width=8)
         self.pt_type_combo.pack(side="left")
-        self.pt_type_combo.set("Left")  # Force visual display
+        self.pt_type_combo.set("Left")
 
         row2 = tk.Frame(settings_frame, bg="#1e1e2e")
         row2.pack(fill="x", pady=1)
@@ -148,25 +164,25 @@ class AutoClicker:
         ttk.Button(btn_row2, text="Remove", command=self.remove_point).pack(side="left", expand=True, fill="x", padx=2)
         ttk.Button(btn_row2, text="Clear", command=self.clear_points).pack(side="left", expand=True, fill="x", padx=(2, 0))
 
-        # ========== Global Settings (new layout) ==========
+        # ========== Global Settings ==========
         global_frame = ttk.LabelFrame(self.root, text=" Global Settings ", padding=5)
         global_frame.pack(fill="x", padx=10, pady=2)
 
-        # Line 1: Random Time + Pos
+        # Line 1
         rowg1 = tk.Frame(global_frame, bg="#1e1e2e")
         rowg1.pack(fill="x", pady=1)
 
         tk.Label(rowg1, text="Random Time ±ms:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
         self.random_var = tk.IntVar(value=0)
         ttk.Spinbox(rowg1, from_=0, to=500, textvariable=self.random_var, width=5,
-                    validate="key", validatecommand=vcmd).pack(side="left", padx=(3, 15))
+                    validate="key", validatecommand=vcmd).pack(side="left", padx=(3, 12))
 
-        tk.Label(rowg1, text="Pos ±px:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        tk.Label(rowg1, text="Random Position ±px:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
         self.pos_random_var = tk.IntVar(value=0)
         ttk.Spinbox(rowg1, from_=0, to=50, textvariable=self.pos_random_var, width=4,
                     validate="key", validatecommand=vcmd).pack(side="left", padx=(3, 0))
 
-        # Line 2: Cycles + Infinite
+        # Line 2
         rowg2 = tk.Frame(global_frame, bg="#1e1e2e")
         rowg2.pack(fill="x", pady=2)
 
@@ -179,7 +195,7 @@ class AutoClicker:
         ttk.Checkbutton(rowg2, text="Infinite", variable=self.infinite,
                         command=self.toggle_infinite).pack(side="left")
 
-        # Line 3: Always on Top
+        # Line 3
         rowg3 = tk.Frame(global_frame, bg="#1e1e2e")
         rowg3.pack(fill="x", pady=2)
         ttk.Checkbutton(rowg3, text="Always on Top", variable=self.always_on_top,
@@ -334,7 +350,7 @@ class AutoClicker:
                                       values=["Left", "Right", "Double", "Middle"],
                                       state="readonly", width=8)
             type_combo.grid(row=4, column=1, pady=2, padx=5)
-            type_combo.set(p.get("type", "Left"))  # Force visual
+            type_combo.set(p.get("type", "Left"))
             entries["type"] = var_type
 
             tk.Label(frame, text="Delay After (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=2)
@@ -393,7 +409,6 @@ class AutoClicker:
         self.root.deiconify()
         self.root.lift()
         self.root.focus_force()
-        # Always bring to front after capture, then restore the real Always on Top setting
         self.root.attributes("-topmost", True)
         self.root.after(150, lambda: self.root.attributes("-topmost", self.always_on_top.get()))
 
@@ -726,8 +741,9 @@ class AutoClicker:
             self.pt_hold_var.set(defaults.get("hold", 50))
             self.pt_count_var.set(defaults.get("count", 1))
             self.pt_delay_var.set(defaults.get("delay_after", 100))
-            self.pt_type_var.set(defaults.get("type", "Left"))
-            self.pt_type_combo.set(defaults.get("type", "Left"))
+            typ = defaults.get("type", "Left")
+            self.pt_type_var.set(typ)
+            self.pt_type_combo.set(typ)
 
             self.selected_index = None
             self.edit_btn.config(state="disabled")

@@ -52,7 +52,7 @@ class AutoClicker:
         self.root.title("Auto Clicker")
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
-        self.version = "v4.3"
+        self.version = "v4.4"
 
         self.points = []
         self.selected_index = None
@@ -66,9 +66,11 @@ class AutoClicker:
         self.infinite = tk.BooleanVar(value=False)
         self.always_on_top = tk.BooleanVar(value=False)
 
+        # Defaults: F1 start, F2 stop, F3 start-record, F4 stop-record
         self.start_hotkey = "f1"
         self.stop_hotkey = "f2"
-        self.record_stop_hotkey = "f3"
+        self.record_start_hotkey = "f3"
+        self.record_stop_hotkey = "f4"
 
         self.mouse = MouseController()
         self.keyboard = KeyboardController()
@@ -114,7 +116,6 @@ class AutoClicker:
         return True
 
     def select_index(self, index):
-        """Select a list index and keep it visible. Clamps to valid range."""
         if not self.points:
             self.selected_index = None
             self.edit_btn.config(state="disabled")
@@ -237,86 +238,111 @@ class AutoClicker:
         ttk.Button(btn_row2, text="Remove", command=self.remove_point).pack(side="left", expand=True, fill="x", padx=2)
         ttk.Button(btn_row2, text="Clear", command=self.clear_points).pack(side="left", expand=True, fill="x", padx=(2, 0))
 
-        # ── Global Settings (improved layout) ──
+        # ── Global Settings ──
         global_frame = ttk.LabelFrame(self.root, text=" Global Settings ", padding=8)
         global_frame.pack(fill="x", padx=10, pady=2)
 
-        # Row 1: Randomness
         g_row1 = tk.Frame(global_frame, bg="#1e1e2e")
         g_row1.pack(fill="x", pady=(0, 4))
 
-        rand_box = tk.Frame(g_row1, bg="#313244", padx=8, pady=4)
+        rand_box = tk.Frame(g_row1, bg="#313244", padx=8, pady=6)
         rand_box.pack(side="left", fill="x", expand=True, padx=(0, 4))
-        tk.Label(rand_box, text="⏱  Random Time", bg="#313244", fg="#a6adc8",
-                 font=("Segoe UI", 8)).pack(anchor="w")
         rt = tk.Frame(rand_box, bg="#313244")
         rt.pack(fill="x")
+        tk.Label(rt, text="⏱  Random Time", bg="#313244", fg="#a6adc8",
+                 font=("Segoe UI", 8)).pack(side="left")
         self.random_var = tk.IntVar(value=0)
-        ttk.Spinbox(rt, from_=0, to=500, textvariable=self.random_var, width=6,
-                    validate="key", validatecommand=vcmd).pack(side="left")
-        tk.Label(rt, text=" ±ms", bg="#313244", fg="#6c7086", font=("Segoe UI", 8)).pack(side="left")
+        ttk.Spinbox(rt, from_=0, to=500, textvariable=self.random_var, width=5,
+                    validate="key", validatecommand=vcmd).pack(side="left", padx=(8, 0))
+        tk.Label(rt, text="±ms", bg="#313244", fg="#6c7086", font=("Segoe UI", 8)).pack(side="left", padx=(2, 0))
 
-        pos_box = tk.Frame(g_row1, bg="#313244", padx=8, pady=4)
+        pos_box = tk.Frame(g_row1, bg="#313244", padx=8, pady=6)
         pos_box.pack(side="left", fill="x", expand=True, padx=(4, 0))
-        tk.Label(pos_box, text="🎯  Random Position", bg="#313244", fg="#a6adc8",
-                 font=("Segoe UI", 8)).pack(anchor="w")
         rp = tk.Frame(pos_box, bg="#313244")
         rp.pack(fill="x")
+        tk.Label(rp, text="🎯  Random Position", bg="#313244", fg="#a6adc8",
+                 font=("Segoe UI", 8)).pack(side="left")
         self.pos_random_var = tk.IntVar(value=0)
-        ttk.Spinbox(rp, from_=0, to=50, textvariable=self.pos_random_var, width=6,
-                    validate="key", validatecommand=vcmd).pack(side="left")
-        tk.Label(rp, text=" ±px", bg="#313244", fg="#6c7086", font=("Segoe UI", 8)).pack(side="left")
+        ttk.Spinbox(rp, from_=0, to=50, textvariable=self.pos_random_var, width=5,
+                    validate="key", validatecommand=vcmd).pack(side="left", padx=(8, 0))
+        tk.Label(rp, text="±px", bg="#313244", fg="#6c7086", font=("Segoe UI", 8)).pack(side="left", padx=(2, 0))
 
-        # Row 2: Cycles + options
         g_row2 = tk.Frame(global_frame, bg="#1e1e2e")
-        g_row2.pack(fill="x", pady=(0, 2))
+        g_row2.pack(fill="x")
 
-        cyc_box = tk.Frame(g_row2, bg="#313244", padx=8, pady=4)
+        cyc_box = tk.Frame(g_row2, bg="#313244", padx=8, pady=6)
         cyc_box.pack(side="left", fill="x", expand=True, padx=(0, 4))
-        tk.Label(cyc_box, text="🔄  Cycles", bg="#313244", fg="#a6adc8",
-                 font=("Segoe UI", 8)).pack(anchor="w")
         cy = tk.Frame(cyc_box, bg="#313244")
         cy.pack(fill="x")
+        tk.Label(cy, text="🔄  Cycles", bg="#313244", fg="#a6adc8",
+                 font=("Segoe UI", 8)).pack(side="left")
         self.rep_var = tk.IntVar(value=1)
-        self.rep_spin = ttk.Spinbox(cy, from_=1, to=99999, textvariable=self.rep_var, width=6,
+        self.rep_spin = ttk.Spinbox(cy, from_=1, to=99999, textvariable=self.rep_var, width=5,
                                     validate="key", validatecommand=vcmd)
-        self.rep_spin.pack(side="left")
+        self.rep_spin.pack(side="left", padx=(8, 0))
         ttk.Checkbutton(cy, text="Infinite", variable=self.infinite,
                         command=self.toggle_infinite).pack(side="left", padx=(10, 0))
 
-        opt_box = tk.Frame(g_row2, bg="#313244", padx=8, pady=4)
+        opt_box = tk.Frame(g_row2, bg="#313244", padx=8, pady=6)
         opt_box.pack(side="left", fill="both", expand=True, padx=(4, 0))
-        tk.Label(opt_box, text="⚙  Options", bg="#313244", fg="#a6adc8",
-                 font=("Segoe UI", 8)).pack(anchor="w")
-        ttk.Checkbutton(opt_box, text="Always on Top", variable=self.always_on_top,
-                        command=self.toggle_topmost).pack(anchor="w")
+        op = tk.Frame(opt_box, bg="#313244")
+        op.pack(fill="x")
+        tk.Label(op, text="⚙  Options", bg="#313244", fg="#a6adc8",
+                 font=("Segoe UI", 8)).pack(side="left")
+        ttk.Checkbutton(op, text="Always on Top", variable=self.always_on_top,
+                        command=self.toggle_topmost).pack(side="left", padx=(10, 0))
 
-        # Hotkeys
-        hotkey_frame = ttk.LabelFrame(self.root, text=" Hotkeys ", padding=5)
+        # ── Hotkeys (2x2 cards) ──
+        hotkey_frame = ttk.LabelFrame(self.root, text=" Hotkeys ", padding=8)
         hotkey_frame.pack(fill="x", padx=10, pady=2)
 
-        hk1 = tk.Frame(hotkey_frame, bg="#1e1e2e")
-        hk1.pack(fill="x", pady=1)
-        self.start_hk_label = tk.Label(hk1, text=f"Start Hotkey: {self.start_hotkey.upper()}",
-                                       bg="#1e1e2e", fg="#cdd6f4", width=22, anchor="w")
+        hk_row1 = tk.Frame(hotkey_frame, bg="#1e1e2e")
+        hk_row1.pack(fill="x", pady=(0, 4))
+
+        # Start
+        hk_start = tk.Frame(hk_row1, bg="#313244", padx=8, pady=5)
+        hk_start.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        hs1 = tk.Frame(hk_start, bg="#313244")
+        hs1.pack(fill="x")
+        self.start_hk_label = tk.Label(hs1, text=f"▶ Start: {self.start_hotkey.upper()}",
+                                       bg="#313244", fg="#cdd6f4", font=("Segoe UI", 9), anchor="w")
         self.start_hk_label.pack(side="left")
-        ttk.Button(hk1, text="Change", width=7, command=lambda: self.change_hotkey("start")).pack(side="left", padx=4)
-        ttk.Checkbutton(hk1, text="Enable", variable=self.g_hotkey_enabled).pack(side="left")
+        ttk.Button(hs1, text="Change", width=6, command=lambda: self.change_hotkey("start")).pack(side="right", padx=(4, 0))
+        ttk.Checkbutton(hs1, text="On", variable=self.g_hotkey_enabled).pack(side="right")
 
-        hk2 = tk.Frame(hotkey_frame, bg="#1e1e2e")
-        hk2.pack(fill="x", pady=1)
-        self.stop_hk_label = tk.Label(hk2, text=f"Stop Hotkey: {self.stop_hotkey.upper()}",
-                                      bg="#1e1e2e", fg="#cdd6f4", width=22, anchor="w")
+        # Stop
+        hk_stop = tk.Frame(hk_row1, bg="#313244", padx=8, pady=5)
+        hk_stop.pack(side="left", fill="x", expand=True, padx=(4, 0))
+        hs2 = tk.Frame(hk_stop, bg="#313244")
+        hs2.pack(fill="x")
+        self.stop_hk_label = tk.Label(hs2, text=f"⏹ Stop: {self.stop_hotkey.upper()}",
+                                      bg="#313244", fg="#cdd6f4", font=("Segoe UI", 9), anchor="w")
         self.stop_hk_label.pack(side="left")
-        ttk.Button(hk2, text="Change", width=7, command=lambda: self.change_hotkey("stop")).pack(side="left", padx=4)
-        ttk.Checkbutton(hk2, text="Enable", variable=self.s_hotkey_enabled).pack(side="left")
+        ttk.Button(hs2, text="Change", width=6, command=lambda: self.change_hotkey("stop")).pack(side="right", padx=(4, 0))
+        ttk.Checkbutton(hs2, text="On", variable=self.s_hotkey_enabled).pack(side="right")
 
-        hk3 = tk.Frame(hotkey_frame, bg="#1e1e2e")
-        hk3.pack(fill="x", pady=1)
-        self.record_stop_hk_label = tk.Label(hk3, text=f"Stop Record: {self.record_stop_hotkey.upper()}",
-                                             bg="#1e1e2e", fg="#cdd6f4", width=22, anchor="w")
+        hk_row2 = tk.Frame(hotkey_frame, bg="#1e1e2e")
+        hk_row2.pack(fill="x")
+
+        # Start Record
+        hk_rs = tk.Frame(hk_row2, bg="#313244", padx=8, pady=5)
+        hk_rs.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        hs3 = tk.Frame(hk_rs, bg="#313244")
+        hs3.pack(fill="x")
+        self.record_start_hk_label = tk.Label(hs3, text=f"⏺ Start Rec: {self.record_start_hotkey.upper()}",
+                                              bg="#313244", fg="#cdd6f4", font=("Segoe UI", 9), anchor="w")
+        self.record_start_hk_label.pack(side="left")
+        ttk.Button(hs3, text="Change", width=6, command=lambda: self.change_hotkey("record_start")).pack(side="right")
+
+        # Stop Record
+        hk_re = tk.Frame(hk_row2, bg="#313244", padx=8, pady=5)
+        hk_re.pack(side="left", fill="x", expand=True, padx=(4, 0))
+        hs4 = tk.Frame(hk_re, bg="#313244")
+        hs4.pack(fill="x")
+        self.record_stop_hk_label = tk.Label(hs4, text=f"⏹ Stop Rec: {self.record_stop_hotkey.upper()}",
+                                             bg="#313244", fg="#cdd6f4", font=("Segoe UI", 9), anchor="w")
         self.record_stop_hk_label.pack(side="left")
-        ttk.Button(hk3, text="Change", width=7, command=lambda: self.change_hotkey("record_stop")).pack(side="left", padx=4)
+        ttk.Button(hs4, text="Change", width=6, command=lambda: self.change_hotkey("record_stop")).pack(side="right")
 
         # Profile
         profile_frame = tk.Frame(self.root, bg="#1e1e2e")
@@ -380,7 +406,6 @@ class AutoClicker:
         self.clipboard_point = copy.deepcopy(self.points[idx])
         del self.points[idx]
         self.refresh_points_list()
-        # Stay on the same index (which is now the next item), or last if we cut the last
         if self.points:
             self.select_index(idx)
         else:
@@ -504,8 +529,6 @@ class AutoClicker:
                 text = f"{prefix}KEY '{p.get('key', '?')}' x{p.get('count', 1)}"
             elif action == "scroll":
                 direction = "UP" if p.get("dy", 0) > 0 else "DOWN"
-                if p.get("dx", 0) != 0:
-                    direction = "RIGHT" if p.get("dx", 0) > 0 else "LEFT"
                 text = f"{prefix}SCROLL {direction} ({p.get('x', 0)},{p.get('y', 0)}) x{p.get('count', 1)}"
             else:
                 text = f"{prefix}CLICK ({p['x']},{p['y']}) {p.get('type', 'Left')} x{p.get('count', 1)}"
@@ -629,6 +652,7 @@ class AutoClicker:
             entries["delay_after"] = var_delay
 
         elif action == "scroll":
+            # Same fields as Add Scroll (no Capture Pos)
             tk.Label(frame, text="X:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
             var_x = tk.IntVar(value=p.get("x", 0))
             ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_x, width=10,
@@ -640,27 +664,31 @@ class AutoClicker:
                         validate="key", validatecommand=vcmd).grid(row=1, column=1, pady=2, padx=5)
             entries["y"] = var_y
             bind_live_preview(var_x, var_y, preview_main)
-            tk.Label(frame, text="dx (horizontal):", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
-            var_dx = tk.IntVar(value=p.get("dx", 0))
-            ttk.Spinbox(frame, from_=-20, to=20, textvariable=var_dx, width=10,
-                        validate="key", validatecommand=vcmd).grid(row=2, column=1, pady=2, padx=5)
-            entries["dx"] = var_dx
-            tk.Label(frame, text="dy (vertical):", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=2)
-            var_dy = tk.IntVar(value=p.get("dy", 0))
-            ttk.Spinbox(frame, from_=-20, to=20, textvariable=var_dy, width=10,
+
+            tk.Label(frame, text="Direction:", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
+            cur_dir = "UP" if p.get("dy", 0) >= 0 else "DOWN"
+            dir_var = tk.StringVar(value=cur_dir)
+            dir_combo = ttk.Combobox(frame, textvariable=dir_var, values=["UP", "DOWN"],
+                                     state="readonly", width=8)
+            dir_combo.grid(row=2, column=1, pady=2, padx=5)
+            entries["direction"] = dir_var
+
+            tk.Label(frame, text="Amount:", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=2)
+            amount_var = tk.IntVar(value=abs(p.get("dy", 3)) or 3)
+            ttk.Spinbox(frame, from_=1, to=20, textvariable=amount_var, width=10,
                         validate="key", validatecommand=vcmd).grid(row=3, column=1, pady=2, padx=5)
-            entries["dy"] = var_dy
-            tk.Label(frame, text="(+dy = UP, -dy = DOWN)", bg="#1e1e2e",
-                     fg="#6c7086", font=("Segoe UI", 8)).grid(row=4, column=0, columnspan=2, sticky="w")
-            tk.Label(frame, text="Repeat:", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=2)
+            entries["amount"] = amount_var
+
+            tk.Label(frame, text="Repeat:", bg="#1e1e2e", fg="#cdd6f4").grid(row=4, column=0, sticky="w", pady=2)
             var_count = tk.IntVar(value=p.get("count", 1))
             ttk.Spinbox(frame, from_=1, to=100, textvariable=var_count, width=10,
-                        validate="key", validatecommand=vcmd).grid(row=5, column=1, pady=2, padx=5)
+                        validate="key", validatecommand=vcmd).grid(row=4, column=1, pady=2, padx=5)
             entries["count"] = var_count
-            tk.Label(frame, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=6, column=0, sticky="w", pady=2)
+
+            tk.Label(frame, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=2)
             var_delay = tk.IntVar(value=p.get("delay_after", 50))
             ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_delay, width=10,
-                        validate="key", validatecommand=vcmd).grid(row=6, column=1, pady=2, padx=5)
+                        validate="key", validatecommand=vcmd).grid(row=5, column=1, pady=2, padx=5)
             entries["delay_after"] = var_delay
 
         elif action == "drag":
@@ -745,8 +773,10 @@ class AutoClicker:
                 elif action == "scroll":
                     p["x"] = int(entries["x"].get())
                     p["y"] = int(entries["y"].get())
-                    p["dx"] = int(entries["dx"].get())
-                    p["dy"] = int(entries["dy"].get())
+                    amount = max(1, int(entries["amount"].get()))
+                    direction = entries["direction"].get()
+                    p["dx"] = 0
+                    p["dy"] = amount if direction == "UP" else -amount
                     p["count"] = int(entries["count"].get())
                     p["delay_after"] = int(entries["delay_after"].get())
                 elif action == "drag":
@@ -833,10 +863,11 @@ class AutoClicker:
         popup.grab_set()
 
         vcmd = (popup.register(self.validate_number), "%d", "%P")
+        defaults = self.get_current_defaults()
 
         tk.Label(popup, text="Add Mouse Scroll", font=("Segoe UI", 11, "bold"),
                  bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 6))
-        tk.Label(popup, text="Click on screen to capture position, or enter manually",
+        tk.Label(popup, text="Click Capture Pos to pick screen location",
                  bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
 
         frame = tk.Frame(popup, bg="#1e1e2e")
@@ -854,8 +885,7 @@ class AutoClicker:
 
         tk.Label(frame, text="Direction:", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
         dir_var = tk.StringVar(value="UP")
-        dir_combo = ttk.Combobox(frame, textvariable=dir_var,
-                                 values=["UP", "DOWN", "LEFT", "RIGHT"],
+        dir_combo = ttk.Combobox(frame, textvariable=dir_var, values=["UP", "DOWN"],
                                  state="readonly", width=8)
         dir_combo.grid(row=2, column=1, pady=2, padx=5)
 
@@ -864,16 +894,34 @@ class AutoClicker:
         ttk.Spinbox(frame, from_=1, to=20, textvariable=amount_var, width=10,
                     validate="key", validatecommand=vcmd).grid(row=3, column=1, pady=2, padx=5)
 
+        tk.Label(frame, text="Repeat:", bg="#1e1e2e", fg="#cdd6f4").grid(row=4, column=0, sticky="w", pady=2)
+        count_var = tk.IntVar(value=defaults["count"])
+        ttk.Spinbox(frame, from_=1, to=100, textvariable=count_var, width=10,
+                    validate="key", validatecommand=vcmd).grid(row=4, column=1, pady=2, padx=5)
+
+        tk.Label(frame, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=2)
+        delay_var = tk.IntVar(value=defaults["delay_after"])
+        ttk.Spinbox(frame, from_=0, to=10000, textvariable=delay_var, width=10,
+                    validate="key", validatecommand=vcmd).grid(row=5, column=1, pady=2, padx=5)
+
         def capture_pos():
             self.status_label.config(text="Click to set scroll position...", fg="#f9e2af")
             self.minimize_for_capture()
 
             def on_click(x, y, button, pressed):
                 if button == Button.left and pressed:
-                    self.root.after(0, lambda: var_x.set(x))
-                    self.root.after(0, lambda: var_y.set(y))
-                    self.root.after(0, self.restore_after_capture)
-                    self.root.after(0, lambda: self.status_label.config(text="Position captured", fg="#a6e3a1"))
+                    def finish():
+                        # 1) restore main window first
+                        self.restore_after_capture()
+                        # 2) then bring the Add Scroll popup back on top
+                        var_x.set(x)
+                        var_y.set(y)
+                        popup.lift()
+                        popup.focus_force()
+                        popup.attributes("-topmost", True)
+                        popup.after(100, lambda: popup.attributes("-topmost", False))
+                        self.status_label.config(text="Position captured", fg="#a6e3a1")
+                    self.root.after(0, finish)
                     return False
                 return True
 
@@ -885,26 +933,19 @@ class AutoClicker:
                 x = int(var_x.get())
                 y = int(var_y.get())
                 amount = max(1, int(amount_var.get()))
+                count = max(1, int(count_var.get()))
+                delay_after = max(0, int(delay_var.get()))
             except Exception:
                 messagebox.showerror("Error", "Invalid values", parent=popup)
                 return
             direction = dir_var.get()
-            dx, dy = 0, 0
-            if direction == "UP":
-                dy = amount
-            elif direction == "DOWN":
-                dy = -amount
-            elif direction == "LEFT":
-                dx = -amount
-            elif direction == "RIGHT":
-                dx = amount
-            defaults = self.get_current_defaults()
+            dy = amount if direction == "UP" else -amount
             point = {
                 "action": "scroll",
                 "x": x, "y": y,
-                "dx": dx, "dy": dy,
-                "count": defaults["count"],
-                "delay_after": defaults["delay_after"],
+                "dx": 0, "dy": dy,
+                "count": count,
+                "delay_after": delay_after,
                 "name": ""
             }
             self.points.append(point)
@@ -1079,6 +1120,8 @@ class AutoClicker:
             self.start_recording()
 
     def start_recording(self):
+        if self.is_running or self.is_recording:
+            return
         self.is_recording = True
         self.record_events = []
         self.record_start_time = time.time()
@@ -1155,10 +1198,13 @@ class AutoClicker:
             self._rec_last_time = now
             if delay_ms > 30:
                 self.record_events.append({"action": "wait", "delay": delay_ms, "name": ""})
+            # Only vertical scroll is kept
+            if dy == 0:
+                return True
             self.record_events.append({
                 "action": "scroll",
                 "x": x, "y": y,
-                "dx": int(dx), "dy": int(dy),
+                "dx": 0, "dy": int(dy),
                 "count": 1,
                 "delay_after": 30,
                 "name": ""
@@ -1249,7 +1295,6 @@ class AutoClicker:
         del self.points[idx]
         self.refresh_points_list()
         if self.points:
-            # Stay on same index (now the next item), or last if we deleted the last
             self.select_index(idx)
         else:
             self.selected_index = None
@@ -1274,7 +1319,12 @@ class AutoClicker:
     def change_hotkey(self, which):
         self.force_english_keyboard()
         self.waiting_for_hotkey = which
-        label = {"start": "START", "stop": "STOP", "record_stop": "STOP RECORD"}.get(which, which.upper())
+        label = {
+            "start": "START",
+            "stop": "STOP",
+            "record_start": "START RECORD",
+            "record_stop": "STOP RECORD"
+        }.get(which, which.upper())
         self.status_label.config(text=f"Press a key for {label}...", fg="#f9e2af")
 
     def start_keyboard_listener(self):
@@ -1294,6 +1344,7 @@ class AutoClicker:
                     all_hk = {
                         "start": self.start_hotkey,
                         "stop": self.stop_hotkey,
+                        "record_start": self.record_start_hotkey,
                         "record_stop": self.record_stop_hotkey
                     }
                     for name, val in all_hk.items():
@@ -1304,13 +1355,16 @@ class AutoClicker:
 
                     if self.waiting_for_hotkey == "start":
                         self.start_hotkey = kstr
-                        self.start_hk_label.config(text=f"Start Hotkey: {kstr.upper()}")
+                        self.start_hk_label.config(text=f"▶ Start: {kstr.upper()}")
                     elif self.waiting_for_hotkey == "stop":
                         self.stop_hotkey = kstr
-                        self.stop_hk_label.config(text=f"Stop Hotkey: {kstr.upper()}")
+                        self.stop_hk_label.config(text=f"⏹ Stop: {kstr.upper()}")
+                    elif self.waiting_for_hotkey == "record_start":
+                        self.record_start_hotkey = kstr
+                        self.record_start_hk_label.config(text=f"⏺ Start Rec: {kstr.upper()}")
                     elif self.waiting_for_hotkey == "record_stop":
                         self.record_stop_hotkey = kstr
-                        self.record_stop_hk_label.config(text=f"Stop Record: {kstr.upper()}")
+                        self.record_stop_hk_label.config(text=f"⏹ Stop Rec: {kstr.upper()}")
 
                     self.status_label.config(text=f"Hotkey → {kstr.upper()}", fg="#a6e3a1")
                     self.waiting_for_hotkey = None
@@ -1319,6 +1373,12 @@ class AutoClicker:
                 if self.is_focus_on_input():
                     return
 
+                # Start recording
+                if kstr == self.record_start_hotkey and not self.is_recording and not self.is_running:
+                    self.root.after(0, self.start_recording)
+                    return
+
+                # Stop recording
                 if self.is_recording and kstr == self.record_stop_hotkey:
                     self.root.after(0, lambda: self.stop_recording(from_ui=False))
                     return
@@ -1518,6 +1578,7 @@ class AutoClicker:
             "infinite": self.infinite.get(),
             "start_hotkey": self.start_hotkey,
             "stop_hotkey": self.stop_hotkey,
+            "record_start_hotkey": self.record_start_hotkey,
             "record_stop_hotkey": self.record_stop_hotkey,
             "start_enabled": self.g_hotkey_enabled.get(),
             "stop_enabled": self.s_hotkey_enabled.get(),
@@ -1556,10 +1617,12 @@ class AutoClicker:
             self.toggle_infinite()
             self.start_hotkey = data.get("start_hotkey", "f1")
             self.stop_hotkey = data.get("stop_hotkey", "f2")
-            self.record_stop_hotkey = data.get("record_stop_hotkey", "f3")
-            self.start_hk_label.config(text=f"Start Hotkey: {self.start_hotkey.upper()}")
-            self.stop_hk_label.config(text=f"Stop Hotkey: {self.stop_hotkey.upper()}")
-            self.record_stop_hk_label.config(text=f"Stop Record: {self.record_stop_hotkey.upper()}")
+            self.record_start_hotkey = data.get("record_start_hotkey", "f3")
+            self.record_stop_hotkey = data.get("record_stop_hotkey", "f4")
+            self.start_hk_label.config(text=f"▶ Start: {self.start_hotkey.upper()}")
+            self.stop_hk_label.config(text=f"⏹ Stop: {self.stop_hotkey.upper()}")
+            self.record_start_hk_label.config(text=f"⏺ Start Rec: {self.record_start_hotkey.upper()}")
+            self.record_stop_hk_label.config(text=f"⏹ Stop Rec: {self.record_stop_hotkey.upper()}")
             self.g_hotkey_enabled.set(data.get("start_enabled", True))
             self.s_hotkey_enabled.set(data.get("stop_enabled", True))
             self.always_on_top.set(data.get("always_on_top", False))

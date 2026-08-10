@@ -16,7 +16,7 @@ class AutoClicker:
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
 
-        self.version = "v2.7"
+        self.version = "v2.8"
 
         self.points = []
         self.selected_index = None
@@ -67,7 +67,6 @@ class AutoClicker:
         style = ttk.Style()
         style.theme_use("clam")
 
-        # --- Stronger Combobox style to prevent fading ---
         style.configure("TCombobox",
                         fieldbackground="#313244",
                         background="#313244",
@@ -93,11 +92,10 @@ class AutoClicker:
 
         vcmd = (self.root.register(self.validate_number), "%d", "%P")
 
-        # Title
         tk.Label(self.root, text="Auto Clicker", font=("Segoe UI", 15, "bold"),
                  bg="#1e1e2e", fg="#89b4fa").pack(pady=(6, 3))
 
-        # ========== Defaults for new points ==========
+        # Defaults
         settings_frame = ttk.LabelFrame(self.root, text=" Defaults for New Points ", padding=5)
         settings_frame.pack(fill="x", padx=10, pady=2)
 
@@ -130,7 +128,7 @@ class AutoClicker:
         ttk.Spinbox(row2, from_=0, to=10000, textvariable=self.pt_delay_var, width=7,
                     validate="key", validatecommand=vcmd).pack(side="left")
 
-        # ========== Points List ==========
+        # Points List
         points_frame = ttk.LabelFrame(self.root, text=" Points Sequence ", padding=5)
         points_frame.pack(fill="x", padx=10, pady=2)
 
@@ -164,11 +162,10 @@ class AutoClicker:
         ttk.Button(btn_row2, text="Remove", command=self.remove_point).pack(side="left", expand=True, fill="x", padx=2)
         ttk.Button(btn_row2, text="Clear", command=self.clear_points).pack(side="left", expand=True, fill="x", padx=(2, 0))
 
-        # ========== Global Settings ==========
+        # Global Settings
         global_frame = ttk.LabelFrame(self.root, text=" Global Settings ", padding=5)
         global_frame.pack(fill="x", padx=10, pady=2)
 
-        # Line 1
         rowg1 = tk.Frame(global_frame, bg="#1e1e2e")
         rowg1.pack(fill="x", pady=1)
 
@@ -182,7 +179,6 @@ class AutoClicker:
         ttk.Spinbox(rowg1, from_=0, to=50, textvariable=self.pos_random_var, width=4,
                     validate="key", validatecommand=vcmd).pack(side="left", padx=(3, 0))
 
-        # Line 2
         rowg2 = tk.Frame(global_frame, bg="#1e1e2e")
         rowg2.pack(fill="x", pady=2)
 
@@ -195,13 +191,12 @@ class AutoClicker:
         ttk.Checkbutton(rowg2, text="Infinite", variable=self.infinite,
                         command=self.toggle_infinite).pack(side="left")
 
-        # Line 3
         rowg3 = tk.Frame(global_frame, bg="#1e1e2e")
         rowg3.pack(fill="x", pady=2)
         ttk.Checkbutton(rowg3, text="Always on Top", variable=self.always_on_top,
                         command=self.toggle_topmost).pack(side="left")
 
-        # ========== Hotkeys ==========
+        # Hotkeys
         hotkey_frame = ttk.LabelFrame(self.root, text=" Hotkeys ", padding=5)
         hotkey_frame.pack(fill="x", padx=10, pady=2)
 
@@ -221,7 +216,7 @@ class AutoClicker:
         ttk.Button(hk2, text="Change", width=7, command=lambda: self.change_hotkey("stop")).pack(side="left", padx=4)
         ttk.Checkbutton(hk2, text="Enable", variable=self.s_hotkey_enabled).pack(side="left")
 
-        # ========== Profile + Actions ==========
+        # Profile + Actions
         profile_frame = tk.Frame(self.root, bg="#1e1e2e")
         profile_frame.pack(fill="x", padx=10, pady=3)
         ttk.Button(profile_frame, text="Save Profile", command=self.save_profile).pack(side="left", expand=True, fill="x", padx=(0, 3))
@@ -236,7 +231,6 @@ class AutoClicker:
         self.exit_btn = ttk.Button(action_frame, text="Exit", command=self.exit_app)
         self.exit_btn.pack(side="left", expand=True, fill="x", padx=(3, 0))
 
-        # Status
         bottom = tk.Frame(self.root, bg="#1e1e2e")
         bottom.pack(fill="x", padx=10, pady=(4, 6))
         self.status_label = tk.Label(bottom, text="Ready", font=("Segoe UI", 9),
@@ -254,6 +248,8 @@ class AutoClicker:
         }
 
     def on_point_select(self, event=None):
+        if self.is_running:
+            return  # ignore manual selection while running
         sel = self.points_listbox.curselection()
         if sel:
             self.selected_index = sel[0]
@@ -261,6 +257,20 @@ class AutoClicker:
         else:
             if self.selected_index is None:
                 self.edit_btn.config(state="disabled")
+
+    def highlight_current(self, index):
+        """Highlight the currently executing step in the list"""
+        try:
+            self.points_listbox.selection_clear(0, tk.END)
+            if 0 <= index < self.points_listbox.size():
+                self.points_listbox.selection_set(index)
+                self.points_listbox.activate(index)
+                self.points_listbox.see(index)
+        except Exception:
+            pass
+
+    def clear_highlight(self):
+        self.points_listbox.selection_clear(0, tk.END)
 
     def refresh_points_list(self):
         self.points_listbox.delete(0, tk.END)
@@ -275,7 +285,7 @@ class AutoClicker:
             self.points_listbox.insert(tk.END, text)
 
     def open_edit_popup(self):
-        if self.selected_index is None or self.selected_index >= len(self.points):
+        if self.is_running or self.selected_index is None or self.selected_index >= len(self.points):
             return
 
         p = self.points[self.selected_index]
@@ -319,7 +329,7 @@ class AutoClicker:
                             textvariable=var, width=10, validate="key", validatecommand=vcmd).grid(row=i, column=1, pady=2, padx=5)
                 entries[key] = var
 
-        else:  # click
+        else:
             tk.Label(frame, text="X:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
             var_x = tk.IntVar(value=p.get("x", 0))
             ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_x, width=10,
@@ -583,6 +593,7 @@ class AutoClicker:
         self.stop_flag = False
         self.start_btn.config(state="disabled")
         self.stop_btn.config(state="normal")
+        self.edit_btn.config(state="disabled")
         self.status_label.config(text="Running...", fg="#89b4fa")
 
         random_ms = self.get_safe_int(self.random_var, 0, 0, 500)
@@ -641,9 +652,12 @@ class AutoClicker:
             max_cycles = float("inf")
 
         while not self.stop_flag and cycle < max_cycles:
-            for p in self.points:
+            for idx, p in enumerate(self.points):
                 if self.stop_flag:
                     break
+
+                # Live highlight the current step
+                self.root.after(0, self.highlight_current, idx)
 
                 action = p.get("action")
 
@@ -681,6 +695,9 @@ class AutoClicker:
     def on_clicking_finished(self):
         self.start_btn.config(state="normal")
         self.stop_btn.config(state="disabled")
+        self.clear_highlight()
+        if self.selected_index is not None:
+            self.edit_btn.config(state="normal")
         self.status_label.config(text="Stopped", fg="#f38ba8")
 
     def stop_clicking(self):

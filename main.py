@@ -16,7 +16,7 @@ class AutoClicker:
         self.root.configure(bg="#1e1e2e")
 
         # Version
-        self.version = "v1.2"
+        self.version = "v1.3"
 
         # State
         self.coords = None
@@ -45,10 +45,17 @@ class AutoClicker:
     def force_english_keyboard(self):
         """Force the keyboard layout to English (US)"""
         try:
-            # 00000409 = English (United States)
             ctypes.windll.user32.LoadKeyboardLayoutW("00000409", 1)
         except Exception:
             pass
+
+    def is_focus_on_input(self):
+        """Check if current focus is on an Entry or Spinbox"""
+        focused = self.root.focus_get()
+        if focused is None:
+            return False
+        widget_class = focused.winfo_class()
+        return widget_class in ("TEntry", "TSpinbox", "Entry", "Spinbox")
 
     def setup_ui(self):
         style = ttk.Style()
@@ -203,7 +210,7 @@ class AutoClicker:
     def start_keyboard_listener(self):
         def on_press(key):
             try:
-                # If we are waiting to change a hotkey
+                # If changing hotkey → always process
                 if self.waiting_for_hotkey:
                     char = None
                     if hasattr(key, "char") and key.char:
@@ -215,7 +222,7 @@ class AutoClicker:
                         self.status_label.config(text="Hotkey change cancelled", fg="#f9e2af")
                         return
 
-                    if char and char.isascii() and char.isalpha():  # Only accept English letters
+                    if char and char.isascii() and char.isalpha():
                         if self.waiting_for_hotkey == "start":
                             if char == self.stop_hotkey:
                                 self.status_label.config(text="Cannot use the same key for Start and Stop!", fg="#f38ba8")
@@ -231,10 +238,17 @@ class AutoClicker:
                             self.stop_hotkey = char
                             self.stop_hk_label.config(text=f"Stop Hotkey:   {char.upper()}")
 
-                        self.status_label.config(text=f"{self.waiting_for_hotkey.capitalize()} hotkey set to: {char.upper()}", fg="#a6e3a1")
+                        self.status_label.config(
+                            text=f"{self.waiting_for_hotkey.capitalize()} hotkey set to: {char.upper()}",
+                            fg="#a6e3a1"
+                        )
                         self.waiting_for_hotkey = None
                     else:
                         self.status_label.config(text="Only English letters are allowed!", fg="#f38ba8")
+                    return
+
+                # === Important fix: Ignore hotkeys while typing in number fields ===
+                if self.is_focus_on_input():
                     return
 
                 # Normal hotkey handling
@@ -259,6 +273,18 @@ class AutoClicker:
         self.keyboard_listener = KeyboardListener(on_press=on_press)
         self.keyboard_listener.start()
 
+    def get_safe_int(self, var, default, min_val=1, max_val=999999):
+        """Safely get integer value from IntVar / Spinbox"""
+        try:
+            value = int(var.get())
+            if value < min_val:
+                value = min_val
+            if value > max_val:
+                value = max_val
+            return value
+        except (tk.TclError, ValueError, TypeError):
+            return default
+
     def start_clicking(self):
         if self.coords is None:
             messagebox.showwarning("Warning", "Please set coordinates first!")
@@ -266,6 +292,16 @@ class AutoClicker:
 
         if self.is_running:
             return
+
+        # Validate numbers before starting
+        hold_ms = self.get_safe_int(self.hold_var, 50, 10, 1000)
+        interval_ms = self.get_safe_int(self.interval_var, 100, 1, 10000)
+        rep_count = self.get_safe_int(self.rep_var, 10, 1, 999999)
+
+        # Update the variables with cleaned values (in case user typed letters)
+        self.hold_var.set(hold_ms)
+        self.interval_var.set(interval_ms)
+        self.rep_var.set(rep_count)
 
         self.is_running = True
         self.stop_flag = False
@@ -275,14 +311,13 @@ class AutoClicker:
         self.correct_btn.config(state="disabled")
         self.status_label.config(text="Running...", fg="#89b4fa")
 
-        thread = threading.Thread(target=self.click_loop, daemon=True)
+        thread = threading.Thread(target=self.click_loop, args=(hold_ms, interval_ms, rep_count), daemon=True)
         thread.start()
 
-    def click_loop(self):
-        hold_ms = self.hold_var.get()
-        interval_ms = self.interval_var.get()
+    def click_loop(self, hold_ms, interval_ms, max_count):
         count = 0
-        max_count = self.rep_var.get() if not self.infinite.get() else float("inf")
+        if self.infinite.get():
+            max_count = float("inf")
 
         while not self.stop_flag and count < max_count:
             self.mouse.position = self.coords

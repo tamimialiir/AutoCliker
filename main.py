@@ -16,7 +16,7 @@ class AutoClicker:
         self.root.configure(bg="#1e1e2e")
 
         # Version
-        self.version = "v1.3"
+        self.version = "v1.4"
 
         # State
         self.coords = None
@@ -57,6 +57,12 @@ class AutoClicker:
         widget_class = focused.winfo_class()
         return widget_class in ("TEntry", "TSpinbox", "Entry", "Spinbox")
 
+    def validate_number(self, action, value_if_allowed):
+        """Only allow digits (and empty string) in number fields"""
+        if action == "1":  # 1 = insertion
+            return value_if_allowed.isdigit() or value_if_allowed == ""
+        return True
+
     def setup_ui(self):
         style = ttk.Style()
         style.theme_use("clam")
@@ -65,6 +71,9 @@ class AutoClicker:
         style.configure("TCheckbutton", background="#1e1e2e", foreground="#cdd6f4", font=("Segoe UI", 10))
         style.configure("TEntry", fieldbackground="#313244", foreground="#cdd6f4")
         style.configure("TSpinbox", fieldbackground="#313244", foreground="#cdd6f4")
+
+        # Validation command for number-only fields
+        vcmd = (self.root.register(self.validate_number), "%d", "%P")
 
         # Title
         title = tk.Label(self.root, text="Auto Clicker", font=("Segoe UI", 18, "bold"),
@@ -94,7 +103,8 @@ class AutoClicker:
 
         tk.Label(hold_frame, text="Hold Duration (ms):", bg="#1e1e2e", fg="#cdd6f4").pack(anchor="w")
         self.hold_var = tk.IntVar(value=50)
-        ttk.Spinbox(hold_frame, from_=10, to=1000, textvariable=self.hold_var, width=12).pack(anchor="w", pady=2)
+        ttk.Spinbox(hold_frame, from_=10, to=1000, textvariable=self.hold_var, width=12,
+                    validate="key", validatecommand=vcmd).pack(anchor="w", pady=2)
 
         # Interval
         interval_frame = tk.Frame(self.root, bg="#1e1e2e")
@@ -102,7 +112,8 @@ class AutoClicker:
 
         tk.Label(interval_frame, text="Interval Between Clicks (ms):", bg="#1e1e2e", fg="#cdd6f4").pack(anchor="w")
         self.interval_var = tk.IntVar(value=100)
-        ttk.Spinbox(interval_frame, from_=1, to=10000, textvariable=self.interval_var, width=12).pack(anchor="w", pady=2)
+        ttk.Spinbox(interval_frame, from_=1, to=10000, textvariable=self.interval_var, width=12,
+                    validate="key", validatecommand=vcmd).pack(anchor="w", pady=2)
 
         # Repetitions
         rep_frame = tk.Frame(self.root, bg="#1e1e2e")
@@ -113,7 +124,8 @@ class AutoClicker:
         rep_inner.pack(anchor="w", pady=2)
 
         self.rep_var = tk.IntVar(value=10)
-        self.rep_spin = ttk.Spinbox(rep_inner, from_=1, to=999999, textvariable=self.rep_var, width=12)
+        self.rep_spin = ttk.Spinbox(rep_inner, from_=1, to=999999, textvariable=self.rep_var, width=12,
+                                    validate="key", validatecommand=vcmd)
         self.rep_spin.pack(side="left")
 
         ttk.Checkbutton(rep_inner, text="Infinite", variable=self.infinite,
@@ -247,7 +259,7 @@ class AutoClicker:
                         self.status_label.config(text="Only English letters are allowed!", fg="#f38ba8")
                     return
 
-                # === Important fix: Ignore hotkeys while typing in number fields ===
+                # Ignore hotkeys while typing in number fields
                 if self.is_focus_on_input():
                     return
 
@@ -298,7 +310,7 @@ class AutoClicker:
         interval_ms = self.get_safe_int(self.interval_var, 100, 1, 10000)
         rep_count = self.get_safe_int(self.rep_var, 10, 1, 999999)
 
-        # Update the variables with cleaned values (in case user typed letters)
+        # Update the variables with cleaned values
         self.hold_var.set(hold_ms)
         self.interval_var.set(interval_ms)
         self.rep_var.set(rep_count)

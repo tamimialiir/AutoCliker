@@ -58,20 +58,20 @@ python main.py
 | **Record**      | Record live mouse + keyboard actions                 |
 
 
-###Editing & Organizing
+### Editing & Organizing
 Double-click any item (or select + Edit) to modify it
 Drag items in the list to reorder
 Use ↑ / ↓ buttons or Delete key
 Ctrl+C / Ctrl+X / Ctrl+V for copy / cut / paste
 
-###Global Settings
+### Global Settings
 Random Time: Adds random delay (±ms) to waits and repeats
 Random Position: Slightly randomizes click/drag/scroll coordinates
 Cycles: How many times the whole sequence should run
 Infinite: Run forever until stopped
 Always on Top: Keep the window above other windows
 
-###Hotkeys (default)
+### Hotkeys (default)
 | Action              | Default Key |
 |---------------------|-------------|
 | Start               | `F1`        |
@@ -81,7 +81,7 @@ Always on Top: Keep the window above other windows
 You can change all hotkeys from the Hotkeys section.
 
 
-##Profile System
+## Profile System
 
 Save Profile → exports current sequence + all settings to a .json file
 Load Profile → restores everything (points, hotkeys, random settings, etc.)
@@ -89,7 +89,7 @@ Load Profile → restores everything (points, hotkeys, random settings, etc.)
 Perfect for sharing macros or switching between different tasks.
 
 
-##Tips
+## Tips
 
 Use Record for complex sequences, then clean them up with Edit.
 For more natural behavior, enable a small Random Time and Random Position.
@@ -97,7 +97,7 @@ You can name each point (optional) for better organization.
 The app forces English keyboard layout on Windows when focused (helps with key recording).
 
 
-##Supported Actions
+## Supported Actions
 
 | Action   | Description                                        |
 |----------|----------------------------------------------------|
@@ -108,12 +108,12 @@ The app forces English keyboard layout on Windows when focused (helps with key r
 | Wait     | Precise delay in milliseconds                      |
 
 
-##License
+## License
 This project is licensed under the MIT License.
 Feel free to use, modify and distribute.
 
 
-##Contributing
+## Contributing
 Pull requests are welcome!
 If you find a bug or have a feature idea, open an issue.
 

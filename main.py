@@ -16,7 +16,7 @@ class AutoClicker:
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
 
-        self.version = "v2.3"
+        self.version = "v2.4"
 
         self.points = []
         self.selected_index = None
@@ -35,6 +35,7 @@ class AutoClicker:
         self.keyboard_listener = None
         self.waiting_for_hotkey = None
         self.adding_mode = None
+        self.temp_drag_start = None
 
         self.force_english_keyboard()
         self.root.bind("<FocusIn>", lambda e: self.force_english_keyboard())
@@ -42,11 +43,9 @@ class AutoClicker:
         self.setup_ui()
         self.start_keyboard_listener()
 
-        # Smart height: fit content exactly
+        # Smart height
         self.root.update_idletasks()
-        width = 470
-        height = self.root.winfo_reqheight()
-        self.root.geometry(f"{width}x{height}")
+        self.root.geometry(f"480x{self.root.winfo_reqheight()}")
 
     def force_english_keyboard(self):
         try:
@@ -147,26 +146,27 @@ class AutoClicker:
         global_frame = ttk.LabelFrame(self.root, text=" Global Settings ", padding=5)
         global_frame.pack(fill="x", padx=10, pady=2)
 
-        rowg = tk.Frame(global_frame, bg="#1e1e2e")
-        rowg.pack(fill="x", pady=1)
+        rowg1 = tk.Frame(global_frame, bg="#1e1e2e")
+        rowg1.pack(fill="x", pady=1)
 
-        tk.Label(rowg, text="Random Time ±ms:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        tk.Label(rowg1, text="Random Time ±ms:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
         self.random_var = tk.IntVar(value=0)
-        ttk.Spinbox(rowg, from_=0, to=500, textvariable=self.random_var, width=5,
-                    validate="key", validatecommand=vcmd).pack(side="left", padx=(3, 10))
+        ttk.Spinbox(rowg1, from_=0, to=500, textvariable=self.random_var, width=5,
+                    validate="key", validatecommand=vcmd).pack(side="left", padx=(3, 12))
 
-        tk.Label(rowg, text="Pos ±px:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        tk.Label(rowg1, text="Pos ±px:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
         self.pos_random_var = tk.IntVar(value=0)
-        ttk.Spinbox(rowg, from_=0, to=50, textvariable=self.pos_random_var, width=4,
-                    validate="key", validatecommand=vcmd).pack(side="left", padx=(3, 10))
+        ttk.Spinbox(rowg1, from_=0, to=50, textvariable=self.pos_random_var, width=4,
+                    validate="key", validatecommand=vcmd).pack(side="left", padx=(3, 12))
 
-        tk.Label(rowg, text="Cycles:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        tk.Label(rowg1, text="Cycles:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
         self.rep_var = tk.IntVar(value=1)
-        self.rep_spin = ttk.Spinbox(rowg, from_=1, to=99999, textvariable=self.rep_var, width=5,
+        self.rep_spin = ttk.Spinbox(rowg1, from_=1, to=99999, textvariable=self.rep_var, width=5,
                                     validate="key", validatecommand=vcmd)
-        self.rep_spin.pack(side="left", padx=(3, 6))
+        self.rep_spin.pack(side="left", padx=(3, 8))
 
-        ttk.Checkbutton(rowg, text="Infinite", variable=self.infinite,
+        # Infinite on its own to avoid cutoff
+        ttk.Checkbutton(rowg1, text="Infinite", variable=self.infinite,
                         command=self.toggle_infinite).pack(side="left")
 
         rowg2 = tk.Frame(global_frame, bg="#1e1e2e")
@@ -174,11 +174,10 @@ class AutoClicker:
         ttk.Checkbutton(rowg2, text="Always on Top", variable=self.always_on_top,
                         command=self.toggle_topmost).pack(side="left")
 
-        # ========== Hotkeys (separated) ==========
+        # ========== Hotkeys ==========
         hotkey_frame = ttk.LabelFrame(self.root, text=" Hotkeys ", padding=5)
         hotkey_frame.pack(fill="x", padx=10, pady=2)
 
-        # Start row
         hk1 = tk.Frame(hotkey_frame, bg="#1e1e2e")
         hk1.pack(fill="x", pady=1)
         self.start_hk_label = tk.Label(hk1, text=f"Start Hotkey:  {self.start_hotkey.upper()}",
@@ -187,7 +186,6 @@ class AutoClicker:
         ttk.Button(hk1, text="Change", width=7, command=lambda: self.change_hotkey("start")).pack(side="left", padx=4)
         ttk.Checkbutton(hk1, text="Enable", variable=self.g_hotkey_enabled).pack(side="left")
 
-        # Stop row
         hk2 = tk.Frame(hotkey_frame, bg="#1e1e2e")
         hk2.pack(fill="x", pady=1)
         self.stop_hk_label = tk.Label(hk2, text=f"Stop Hotkey:   {self.stop_hotkey.upper()}",
@@ -230,23 +228,20 @@ class AutoClicker:
 
     def on_point_select(self, event=None):
         sel = self.points_listbox.curselection()
-        if not sel:
-            self.selected_index = None
-            self.apply_btn.config(state="disabled")
-            return
-
-        self.selected_index = sel[0]
-        p = self.points[self.selected_index]
-
-        self.pt_hold_var.set(p.get("hold", 50))
-        self.pt_count_var.set(p.get("count", 1))
-        self.pt_delay_var.set(p.get("delay_after", 100))
-        self.pt_type_var.set(p.get("type", "Left"))
-
-        self.apply_btn.config(state="normal")
+        if sel:
+            self.selected_index = sel[0]
+            p = self.points[self.selected_index]
+            self.pt_hold_var.set(p.get("hold", 50))
+            self.pt_count_var.set(p.get("count", 1))
+            self.pt_delay_var.set(p.get("delay_after", 100))
+            self.pt_type_var.set(p.get("type", "Left"))
+            self.apply_btn.config(state="normal")
+        # مهم: اگر sel خالی بود، selected_index را پاک نکن
+        # تا با تغییر Spinboxها دکمه Apply غیرفعال نشود
 
     def apply_to_selected(self):
         if self.selected_index is None or self.selected_index >= len(self.points):
+            self.apply_btn.config(state="disabled")
             return
 
         p = self.points[self.selected_index]
@@ -257,10 +252,10 @@ class AutoClicker:
         p["type"] = defaults["type"]
 
         self.refresh_points_list()
-        # Keep selection
         self.points_listbox.selection_clear(0, tk.END)
         self.points_listbox.selection_set(self.selected_index)
         self.points_listbox.activate(self.selected_index)
+        self.apply_btn.config(state="normal")
         self.status_label.config(text="Changes applied to selected point", fg="#a6e3a1")
 
     def refresh_points_list(self):
@@ -272,60 +267,84 @@ class AutoClicker:
                 text = f"{i}. ({p['x']},{p['y']}) {p.get('type','Left')} x{p.get('count',1)}"
             self.points_listbox.insert(tk.END, text)
 
+    def minimize_for_capture(self):
+        self.root.iconify()
+
+    def restore_after_capture(self):
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+        if self.always_on_top.get():
+            self.root.attributes("-topmost", True)
+
     def start_add_point(self, mode):
         if self.is_running:
             return
 
         self.adding_mode = mode
+        self.temp_drag_start = None
+
+        self.minimize_for_capture()
+
         if mode == "click":
             self.status_label.config(text="Click to add a new CLICK point...", fg="#f9e2af")
         else:
-            self.status_label.config(text="Click START position of DRAG...", fg="#f9e2af")
+            self.status_label.config(text="Press & hold mouse, then release to set DRAG...", fg="#f9e2af")
 
         def on_click(x, y, button, pressed):
-            if not pressed or button != Button.left:
+            if button != Button.left:
                 return
 
             defaults = self.get_current_defaults()
 
+            # ---------- CLICK MODE ----------
             if self.adding_mode == "click":
-                point = {
-                    "action": "click",
-                    "x": x, "y": y,
-                    **defaults
-                }
-                self.points.append(point)
-                self.refresh_points_list()
-                self.status_label.config(text=f"New click point added ({x},{y})", fg="#a6e3a1")
-                self.adding_mode = None
-                return False
+                if pressed:
+                    point = {
+                        "action": "click",
+                        "x": x, "y": y,
+                        **defaults
+                    }
+                    self.points.append(point)
+                    self.root.after(0, self.finish_add_point, f"New click point added ({x},{y})")
+                    return False
 
+            # ---------- DRAG MODE (natural) ----------
             elif self.adding_mode == "drag":
-                self.temp_drag_start = (x, y)
-                self.adding_mode = "drag_end"
-                self.status_label.config(text="Now click END position of DRAG...", fg="#f9e2af")
-                return True
+                if pressed:
+                    # Mouse button down → start point
+                    self.temp_drag_start = (x, y)
+                    self.adding_mode = "drag_release"
+                    return True  # continue listening for release
+                # ignore release if we somehow get it here
 
-            elif self.adding_mode == "drag_end":
-                point = {
-                    "action": "drag",
-                    "x": self.temp_drag_start[0],
-                    "y": self.temp_drag_start[1],
-                    "drag_x": x,
-                    "drag_y": y,
-                    "hold": defaults["hold"],
-                    "count": 1,
-                    "delay_after": defaults["delay_after"],
-                    "type": "Left"
-                }
-                self.points.append(point)
-                self.refresh_points_list()
-                self.status_label.config(text="New drag point added", fg="#a6e3a1")
-                self.adding_mode = None
-                return False
+            elif self.adding_mode == "drag_release":
+                if not pressed and self.temp_drag_start is not None:
+                    # Mouse button up → end point
+                    point = {
+                        "action": "drag",
+                        "x": self.temp_drag_start[0],
+                        "y": self.temp_drag_start[1],
+                        "drag_x": x,
+                        "drag_y": y,
+                        "hold": defaults["hold"],
+                        "count": 1,
+                        "delay_after": defaults["delay_after"],
+                        "type": "Left"
+                    }
+                    self.points.append(point)
+                    self.root.after(0, self.finish_add_point, "New drag point added")
+                    return False
 
         self.click_listener = mouse.Listener(on_click=on_click)
         self.click_listener.start()
+
+    def finish_add_point(self, message):
+        self.adding_mode = None
+        self.temp_drag_start = None
+        self.refresh_points_list()
+        self.restore_after_capture()
+        self.status_label.config(text=message, fg="#a6e3a1")
 
     def move_up(self):
         if self.selected_index is None or self.selected_index == 0 or self.is_running:
@@ -336,6 +355,7 @@ class AutoClicker:
         self.refresh_points_list()
         self.points_listbox.selection_set(self.selected_index)
         self.points_listbox.activate(self.selected_index)
+        self.apply_btn.config(state="normal")
 
     def move_down(self):
         if self.selected_index is None or self.selected_index >= len(self.points)-1 or self.is_running:
@@ -346,6 +366,7 @@ class AutoClicker:
         self.refresh_points_list()
         self.points_listbox.selection_set(self.selected_index)
         self.points_listbox.activate(self.selected_index)
+        self.apply_btn.config(state="normal")
 
     def remove_point(self):
         if self.is_running or self.selected_index is None:

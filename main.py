@@ -24,8 +24,24 @@ SPECIAL_KEYS = {
     "cmd": Key.cmd, "caps_lock": Key.caps_lock,
 }
 
+MODIFIER_KEYS = {
+    Key.ctrl, Key.ctrl_l, Key.ctrl_r,
+    Key.alt, Key.alt_l, Key.alt_r,
+    Key.shift, Key.shift_l, Key.shift_r,
+    Key.cmd, Key.cmd_l, Key.cmd_r,
+}
+
+MODIFIER_NAME = {
+    Key.ctrl: "ctrl", Key.ctrl_l: "ctrl", Key.ctrl_r: "ctrl",
+    Key.alt: "alt", Key.alt_l: "alt", Key.alt_r: "alt",
+    Key.shift: "shift", Key.shift_l: "shift", Key.shift_r: "shift",
+    Key.cmd: "cmd", Key.cmd_l: "cmd", Key.cmd_r: "cmd",
+}
+
 
 def key_to_str(key):
+    if key in MODIFIER_NAME:
+        return MODIFIER_NAME[key]
     if isinstance(key, KeyCode):
         if key.char:
             return key.char.lower()
@@ -46,13 +62,31 @@ def str_to_key(s):
     return s
 
 
+def parse_key_combo(combo):
+    """Parse 'ctrl+shift+a' into (modifier_keys, main_key_str)."""
+    parts = [p.strip().lower() for p in combo.split("+") if p.strip()]
+    if not parts:
+        return [], "a"
+    mod_order = ["ctrl", "alt", "shift", "cmd"]
+    modifiers = []
+    main = parts[-1]
+    for p in parts[:-1]:
+        if p in mod_order and p in SPECIAL_KEYS:
+            modifiers.append(SPECIAL_KEYS[p])
+        elif p in SPECIAL_KEYS:
+            # treat unknown special as main if mis-parsed
+            pass
+    # if only modifiers typed, last is still main
+    return modifiers, main
+
+
 class AutoClicker:
     def __init__(self, root):
         self.root = root
         self.root.title("Auto Clicker")
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
-        self.version = "v4.6"
+        self.version = "v4.7"
 
         self.points = []
         self.selected_index = None
@@ -245,8 +279,7 @@ class AutoClicker:
         rand_box.pack(side="left", fill="x", expand=True, padx=(0, 4))
         rt = tk.Frame(rand_box, bg="#313244")
         rt.pack(fill="x")
-        tk.Label(rt, text="⏱  Random Time", bg="#313244", fg="#a6adc8",
-                 font=("Segoe UI", 8)).pack(side="left")
+        tk.Label(rt, text="⏱  Random Time", bg="#313244", fg="#a6adc8", font=("Segoe UI", 8)).pack(side="left")
         self.random_var = tk.IntVar(value=0)
         ttk.Spinbox(rt, from_=0, to=500, textvariable=self.random_var, width=5,
                     validate="key", validatecommand=vcmd).pack(side="left", padx=(8, 0))
@@ -256,8 +289,7 @@ class AutoClicker:
         pos_box.pack(side="left", fill="x", expand=True, padx=(4, 0))
         rp = tk.Frame(pos_box, bg="#313244")
         rp.pack(fill="x")
-        tk.Label(rp, text="🎯  Random Position", bg="#313244", fg="#a6adc8",
-                 font=("Segoe UI", 8)).pack(side="left")
+        tk.Label(rp, text="🎯  Random Position", bg="#313244", fg="#a6adc8", font=("Segoe UI", 8)).pack(side="left")
         self.pos_random_var = tk.IntVar(value=0)
         ttk.Spinbox(rp, from_=0, to=50, textvariable=self.pos_random_var, width=5,
                     validate="key", validatecommand=vcmd).pack(side="left", padx=(8, 0))
@@ -270,8 +302,7 @@ class AutoClicker:
         cyc_box.pack(side="left", fill="x", expand=True, padx=(0, 4))
         cy = tk.Frame(cyc_box, bg="#313244")
         cy.pack(fill="x")
-        tk.Label(cy, text="🔄  Cycles", bg="#313244", fg="#a6adc8",
-                 font=("Segoe UI", 8)).pack(side="left")
+        tk.Label(cy, text="🔄  Cycles", bg="#313244", fg="#a6adc8", font=("Segoe UI", 8)).pack(side="left")
         self.rep_var = tk.IntVar(value=1)
         self.rep_spin = ttk.Spinbox(cy, from_=1, to=99999, textvariable=self.rep_var, width=5,
                                     validate="key", validatecommand=vcmd)
@@ -283,8 +314,7 @@ class AutoClicker:
         opt_box.pack(side="left", fill="both", expand=True, padx=(4, 0))
         op = tk.Frame(opt_box, bg="#313244")
         op.pack(fill="x")
-        tk.Label(op, text="⚙  Options", bg="#313244", fg="#a6adc8",
-                 font=("Segoe UI", 8)).pack(side="left")
+        tk.Label(op, text="⚙  Options", bg="#313244", fg="#a6adc8", font=("Segoe UI", 8)).pack(side="left")
         ttk.Checkbutton(op, text="Always on Top", variable=self.always_on_top,
                         command=self.toggle_topmost).pack(side="left", padx=(10, 0))
 
@@ -561,48 +591,6 @@ class AutoClicker:
         except Exception:
             pass
 
-    def pick_screen_position(self, on_picked, on_cancel=None):
-        """Fullscreen overlay to pick a screen coordinate. No minimize/withdraw."""
-        overlay = tk.Toplevel(self.root)
-        overlay.title("Pick Position")
-        overlay.attributes("-topmost", True)
-        overlay.attributes("-alpha", 0.25)
-        overlay.configure(bg="#11111b")
-        overlay.config(cursor="crosshair")
-        # Cover primary screen
-        sw = overlay.winfo_screenwidth()
-        sh = overlay.winfo_screenheight()
-        overlay.geometry(f"{sw}x{sh}+0+0")
-        overlay.overrideredirect(True)
-        overlay.focus_force()
-        overlay.grab_set()
-
-        hint = tk.Label(overlay,
-                        text="Click anywhere to set position   |   Esc to cancel",
-                        fg="#cdd6f4", bg="#11111b", font=("Segoe UI", 14, "bold"))
-        hint.place(relx=0.5, rely=0.08, anchor="center")
-
-        def finish_pick(event):
-            x, y = event.x_root, event.y_root
-            try:
-                overlay.grab_release()
-            except Exception:
-                pass
-            overlay.destroy()
-            on_picked(x, y)
-
-        def finish_cancel(event=None):
-            try:
-                overlay.grab_release()
-            except Exception:
-                pass
-            overlay.destroy()
-            if on_cancel:
-                on_cancel()
-
-        overlay.bind("<Button-1>", finish_pick)
-        overlay.bind("<Escape>", finish_cancel)
-
     def open_edit_popup(self):
         if self.is_running or self.is_recording or self.selected_index is None or self.selected_index >= len(self.points):
             return
@@ -632,7 +620,6 @@ class AutoClicker:
             popup.destroy()
 
         popup.protocol("WM_DELETE_WINDOW", on_popup_close)
-
         vcmd = (popup.register(self.validate_number), "%d", "%P")
 
         tk.Label(popup, text=f"Editing item #{self.selected_index + 1}", font=("Segoe UI", 11, "bold"),
@@ -666,12 +653,12 @@ class AutoClicker:
             entries["delay"] = var
 
         elif action == "key":
-            tk.Label(frame, text="Key:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
+            tk.Label(frame, text="Key / Combo:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
             key_var = tk.StringVar(value=p.get("key", "a"))
-            ttk.Entry(frame, textvariable=key_var, width=12).grid(row=0, column=1, pady=2, padx=5)
+            ttk.Entry(frame, textvariable=key_var, width=16).grid(row=0, column=1, pady=2, padx=5)
             entries["key"] = key_var
-            tk.Label(frame, text="(letter / f1-f12 / space / enter / ...)", bg="#1e1e2e",
-                     fg="#6c7086", font=("Segoe UI", 8)).grid(row=1, column=0, columnspan=2, sticky="w")
+            tk.Label(frame, text="e.g. a  |  ctrl+c  |  alt+shift+f4  |  cmd+v",
+                     bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).grid(row=1, column=0, columnspan=2, sticky="w")
             tk.Label(frame, text="Repeat:", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
             var_count = tk.IntVar(value=p.get("count", 1))
             ttk.Spinbox(frame, from_=1, to=100, textvariable=var_count, width=10,
@@ -882,9 +869,13 @@ class AutoClicker:
         popup.geometry(f"+{x}+{y}")
         popup.bind("<Return>", lambda e: apply())
 
-    def add_scroll_action(self):
+    def add_scroll_action(self, preset=None):
+        """preset: optional dict to pre-fill fields after position capture."""
         if self.is_running or self.is_recording:
             return
+        if preset is None:
+            preset = {}
+
         popup = tk.Toplevel(self.root)
         popup.title("Add Scroll")
         popup.configure(bg="#1e1e2e")
@@ -897,71 +888,82 @@ class AutoClicker:
 
         tk.Label(popup, text="Add Mouse Scroll", font=("Segoe UI", 11, "bold"),
                  bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 6))
-        tk.Label(popup, text="Use Capture Pos to pick a screen location",
+        tk.Label(popup, text="Capture Pos closes this dialog, then reopens it with coordinates",
                  bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
 
         frame = tk.Frame(popup, bg="#1e1e2e")
         frame.pack(padx=15, pady=8)
 
         tk.Label(frame, text="X:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
-        var_x = tk.IntVar(value=0)
+        var_x = tk.IntVar(value=preset.get("x", 0))
         ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_x, width=10,
                     validate="key", validatecommand=vcmd).grid(row=0, column=1, pady=2, padx=5)
 
         tk.Label(frame, text="Y:", bg="#1e1e2e", fg="#cdd6f4").grid(row=1, column=0, sticky="w", pady=2)
-        var_y = tk.IntVar(value=0)
+        var_y = tk.IntVar(value=preset.get("y", 0))
         ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_y, width=10,
                     validate="key", validatecommand=vcmd).grid(row=1, column=1, pady=2, padx=5)
 
         tk.Label(frame, text="Direction:", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
-        dir_var = tk.StringVar(value="UP")
+        dir_var = tk.StringVar(value=preset.get("direction", "UP"))
         ttk.Combobox(frame, textvariable=dir_var, values=["UP", "DOWN"],
                      state="readonly", width=8).grid(row=2, column=1, pady=2, padx=5)
 
         tk.Label(frame, text="Amount:", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=2)
-        amount_var = tk.IntVar(value=3)
+        amount_var = tk.IntVar(value=preset.get("amount", 3))
         ttk.Spinbox(frame, from_=1, to=20, textvariable=amount_var, width=10,
                     validate="key", validatecommand=vcmd).grid(row=3, column=1, pady=2, padx=5)
 
         tk.Label(frame, text="Repeat:", bg="#1e1e2e", fg="#cdd6f4").grid(row=4, column=0, sticky="w", pady=2)
-        count_var = tk.IntVar(value=defaults["count"])
+        count_var = tk.IntVar(value=preset.get("count", defaults["count"]))
         ttk.Spinbox(frame, from_=1, to=100, textvariable=count_var, width=10,
                     validate="key", validatecommand=vcmd).grid(row=4, column=1, pady=2, padx=5)
 
         tk.Label(frame, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=2)
-        delay_var = tk.IntVar(value=defaults["delay_after"])
+        delay_var = tk.IntVar(value=preset.get("delay_after", defaults["delay_after"]))
         ttk.Spinbox(frame, from_=0, to=10000, textvariable=delay_var, width=10,
                     validate="key", validatecommand=vcmd).grid(row=5, column=1, pady=2, padx=5)
 
         def capture_pos():
-            # Release modal grab so overlay can take over; do NOT minimize/withdraw popup
+            # Save current form values, DESTROY dialog (root cause fix), minimize, capture, reopen fresh
             try:
-                popup.grab_release()
+                saved = {
+                    "x": int(var_x.get()),
+                    "y": int(var_y.get()),
+                    "direction": dir_var.get(),
+                    "amount": int(amount_var.get()),
+                    "count": int(count_var.get()),
+                    "delay_after": int(delay_var.get()),
+                }
             except Exception:
-                pass
-            self.status_label.config(text="Click on screen to set position...", fg="#f9e2af")
+                saved = {
+                    "direction": dir_var.get(),
+                    "amount": 3,
+                    "count": defaults["count"],
+                    "delay_after": defaults["delay_after"],
+                }
 
-            def on_picked(x, y):
-                var_x.set(x)
-                var_y.set(y)
-                try:
-                    popup.lift()
-                    popup.focus_force()
-                    popup.grab_set()
-                except Exception:
-                    pass
-                self.status_label.config(text="Position captured", fg="#a6e3a1")
+            popup.destroy()
+            self.status_label.config(text="Click to set scroll position...", fg="#f9e2af")
+            self.root.iconify()
 
-            def on_cancel():
-                try:
-                    popup.lift()
-                    popup.focus_force()
-                    popup.grab_set()
-                except Exception:
-                    pass
-                self.status_label.config(text="Capture cancelled", fg="#f9e2af")
+            def on_click(x, y, button, pressed):
+                if button != Button.left or not pressed:
+                    return True
 
-            self.pick_screen_position(on_picked, on_cancel)
+                def finish():
+                    saved["x"] = x
+                    saved["y"] = y
+                    self.restore_after_capture()
+                    # reopen a brand-new healthy dialog with saved + captured values
+                    self.root.after(100, lambda: self.add_scroll_action(preset=saved))
+                    self.status_label.config(text="Position captured", fg="#a6e3a1")
+
+                self.root.after(0, finish)
+                return False
+
+            listener = mouse.Listener(on_click=on_click)
+            listener.start()
 
         def apply():
             try:
@@ -1010,36 +1012,59 @@ class AutoClicker:
         popup.transient(self.root)
         popup.grab_set()
 
-        tk.Label(popup, text="Press a key or type its name", font=("Segoe UI", 10, "bold"),
-                 bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 6))
-        tk.Label(popup, text="(letters, f1-f12, space, enter, tab, esc, ...)",
+        tk.Label(popup, text="Key or combination", font=("Segoe UI", 10, "bold"),
+                 bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 4))
+        tk.Label(popup, text="Type manually or Capture (supports Ctrl/Alt/Shift/Cmd + key)",
                  bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
 
         key_var = tk.StringVar(value="")
-        entry = ttk.Entry(popup, textvariable=key_var, width=18, font=("Segoe UI", 11))
+        entry = ttk.Entry(popup, textvariable=key_var, width=22, font=("Segoe UI", 11))
         entry.pack(pady=8)
         entry.focus_set()
 
+        tk.Label(popup, text="Examples:  a   |   ctrl+c   |   alt+f4   |   shift+ctrl+s   |   cmd+v",
+                 bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
+
         def capture_from_listener():
-            self.status_label.config(text="Press any key to capture...", fg="#f9e2af")
+            self.status_label.config(text="Hold modifiers, then press the key...", fg="#f9e2af")
+            held_mods = set()
 
             def on_press(key):
                 try:
+                    if key in MODIFIER_NAME:
+                        held_mods.add(MODIFIER_NAME[key])
+                        return True
                     kstr = key_to_str(key)
-                    if kstr:
-                        self.root.after(0, lambda: key_var.set(kstr))
-                        return False
+                    if kstr in ("ctrl", "alt", "shift", "cmd"):
+                        held_mods.add(kstr)
+                        return True
+                    # Build combo: ordered modifiers + main key
+                    order = ["ctrl", "alt", "shift", "cmd"]
+                    mods = [m for m in order if m in held_mods]
+                    combo = "+".join(mods + [kstr]) if mods else kstr
+                    self.root.after(0, lambda c=combo: key_var.set(c))
+                    self.root.after(0, lambda: self.status_label.config(
+                        text=f"Captured: {combo}", fg="#a6e3a1"))
+                    return False
                 except Exception:
                     pass
                 return True
 
-            listener = KeyboardListener(on_press=on_press)
+            def on_release(key):
+                try:
+                    if key in MODIFIER_NAME:
+                        held_mods.discard(MODIFIER_NAME[key])
+                except Exception:
+                    pass
+                return True
+
+            listener = KeyboardListener(on_press=on_press, on_release=on_release)
             listener.start()
 
         def apply():
             k = key_var.get().strip().lower()
             if not k:
-                messagebox.showwarning("Warning", "Enter or capture a key.", parent=popup)
+                messagebox.showwarning("Warning", "Enter or capture a key / combo.", parent=popup)
                 return
             defaults = self.get_current_defaults()
             point = {
@@ -1178,6 +1203,7 @@ class AutoClicker:
 
         self._rec_drag_start = None
         self._rec_last_time = self.record_start_time
+        self._rec_held_mods = set()
 
         def on_click(x, y, button, pressed):
             if not self.is_recording:
@@ -1251,23 +1277,41 @@ class AutoClicker:
             kstr = key_to_str(key)
             if kstr == self.record_stop_hotkey:
                 return True
+            if key in MODIFIER_NAME or kstr in ("ctrl", "alt", "shift", "cmd"):
+                self._rec_held_mods.add(MODIFIER_NAME.get(key, kstr))
+                return True
+
             now = time.time()
             delay_ms = int((now - self._rec_last_time) * 1000)
             self._rec_last_time = now
             if delay_ms > 30:
                 self.record_events.append({"action": "wait", "delay": delay_ms, "name": ""})
+
+            order = ["ctrl", "alt", "shift", "cmd"]
+            mods = [m for m in order if m in self._rec_held_mods]
+            combo = "+".join(mods + [kstr]) if mods else kstr
             self.record_events.append({
                 "action": "key",
-                "key": kstr,
+                "key": combo,
                 "count": 1,
                 "delay_after": 50,
                 "name": ""
             })
             return True
 
+        def on_release(key):
+            if not self.is_recording:
+                return False
+            try:
+                if key in MODIFIER_NAME:
+                    self._rec_held_mods.discard(MODIFIER_NAME[key])
+            except Exception:
+                pass
+            return True
+
         self.record_mouse_listener = mouse.Listener(on_click=on_click, on_scroll=on_scroll)
         self.record_mouse_listener.start()
-        self.record_keyboard_listener = KeyboardListener(on_press=on_press)
+        self.record_keyboard_listener = KeyboardListener(on_press=on_press, on_release=on_release)
         self.record_keyboard_listener.start()
 
     def stop_recording(self, from_ui=False):
@@ -1371,7 +1415,7 @@ class AutoClicker:
                         self.waiting_for_hotkey = None
                         self.status_label.config(text="Cancelled", fg="#f9e2af")
                         return
-                    if not kstr:
+                    if not kstr or kstr in ("ctrl", "alt", "shift", "cmd"):
                         return
                     all_hk = {
                         "start": self.start_hotkey,
@@ -1488,15 +1532,25 @@ class AutoClicker:
         self.mouse.release(Button.left)
 
     def perform_key(self, p):
-        k = p.get("key", "a")
-        key_obj = str_to_key(k)
+        """Supports single keys and combos like ctrl+c, alt+shift+f4, cmd+v."""
+        combo = p.get("key", "a")
+        modifiers, main = parse_key_combo(combo)
+        main_obj = str_to_key(main)
         try:
-            self.keyboard.press(key_obj)
-            self.keyboard.release(key_obj)
+            for mod in modifiers:
+                self.keyboard.press(mod)
+            try:
+                self.keyboard.press(main_obj)
+                self.keyboard.release(main_obj)
+            except Exception:
+                self.keyboard.press(main)
+                self.keyboard.release(main)
+            for mod in reversed(modifiers):
+                self.keyboard.release(mod)
         except Exception:
             try:
-                self.keyboard.press(k)
-                self.keyboard.release(k)
+                self.keyboard.press(main_obj)
+                self.keyboard.release(main_obj)
             except Exception:
                 pass
 

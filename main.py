@@ -11,7 +11,6 @@ from pynput.mouse import Button, Controller as MouseController
 from pynput.keyboard import Key, KeyCode, Listener as KeyboardListener, Controller as KeyboardController
 
 
-# Mapping for special keys (hotkeys + keyboard actions)
 SPECIAL_KEYS = {
     "f1": Key.f1, "f2": Key.f2, "f3": Key.f3, "f4": Key.f4,
     "f5": Key.f5, "f6": Key.f6, "f7": Key.f7, "f8": Key.f8,
@@ -26,7 +25,6 @@ SPECIAL_KEYS = {
 
 
 def key_to_str(key):
-    """Convert a pynput key object to a normalized string."""
     if isinstance(key, KeyCode):
         if key.char:
             return key.char.lower()
@@ -39,7 +37,6 @@ def key_to_str(key):
 
 
 def str_to_key(s):
-    """Convert a normalized string back to a pynput key object."""
     s = s.lower().strip()
     if s in SPECIAL_KEYS:
         return SPECIAL_KEYS[s]
@@ -54,7 +51,7 @@ class AutoClicker:
         self.root.title("Auto Clicker")
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
-        self.version = "v4.0"
+        self.version = "v4.1"
 
         self.points = []
         self.selected_index = None
@@ -67,7 +64,6 @@ class AutoClicker:
         self.infinite = tk.BooleanVar(value=False)
         self.always_on_top = tk.BooleanVar(value=False)
 
-        # Default hotkeys: F1 start, F2 stop, F3 stop-record
         self.start_hotkey = "f1"
         self.stop_hotkey = "f2"
         self.record_stop_hotkey = "f3"
@@ -85,11 +81,8 @@ class AutoClicker:
         self.record_events = []
         self.record_start_time = 0
 
-        # For live list drag-reorder
         self.drag_start_index = None
         self.drag_current_index = None
-
-        # Preview window reference
         self.preview_windows = []
 
         self.force_english_keyboard()
@@ -99,7 +92,6 @@ class AutoClicker:
         self.root.update_idletasks()
         self.root.geometry(f"520x{self.root.winfo_reqheight()}")
 
-    # -------------------- Platform helpers --------------------
     def force_english_keyboard(self):
         if platform.system() == "Windows":
             try:
@@ -118,7 +110,6 @@ class AutoClicker:
             return value_if_allowed.isdigit() or value_if_allowed == ""
         return True
 
-    # -------------------- UI --------------------
     def setup_ui(self):
         style = ttk.Style()
         style.theme_use("clam")
@@ -193,8 +184,6 @@ class AutoClicker:
         self.points_listbox.pack(side="left", fill="x", expand=True)
         self.points_listbox.bind("<<ListboxSelect>>", self.on_point_select)
         self.points_listbox.bind("<Double-Button-1>", lambda e: self.open_edit_popup())
-
-        # Live Drag-and-drop reordering
         self.points_listbox.bind("<ButtonPress-1>", self.on_list_drag_start)
         self.points_listbox.bind("<B1-Motion>", self.on_list_drag_motion)
         self.points_listbox.bind("<ButtonRelease-1>", self.on_list_drag_drop)
@@ -210,10 +199,22 @@ class AutoClicker:
         ttk.Button(btn_row, text="Add Wait", command=self.add_wait).pack(side="left", expand=True, fill="x", padx=2)
         ttk.Button(btn_row, text="Add Key", command=self.add_key_action).pack(side="left", expand=True, fill="x", padx=(2, 0))
 
+        # Row 2: Record (first) + Edit / Up / Down / Remove / Clear
         btn_row2 = tk.Frame(points_frame, bg="#1e1e2e")
         btn_row2.pack(fill="x", pady=(3, 0))
+
+        # Record button + red indicator
+        rec_frame = tk.Frame(btn_row2, bg="#1e1e2e")
+        rec_frame.pack(side="left", expand=True, fill="x", padx=(0, 2))
+        self.record_indicator = tk.Canvas(rec_frame, width=14, height=14, bg="#1e1e2e",
+                                          highlightthickness=0, bd=0)
+        self.record_indicator.pack(side="left", padx=(0, 4))
+        self.record_indicator.create_oval(2, 2, 12, 12, fill="#5c1a1a", outline="", tags="dot")
+        self.record_btn = ttk.Button(rec_frame, text="Record", command=self.toggle_recording)
+        self.record_btn.pack(side="left", expand=True, fill="x")
+
         self.edit_btn = ttk.Button(btn_row2, text="Edit", command=self.open_edit_popup, state="disabled")
-        self.edit_btn.pack(side="left", expand=True, fill="x", padx=(0, 2))
+        self.edit_btn.pack(side="left", expand=True, fill="x", padx=2)
         ttk.Button(btn_row2, text="↑", width=3, command=self.move_up).pack(side="left", padx=2)
         ttk.Button(btn_row2, text="↓", width=3, command=self.move_down).pack(side="left", padx=2)
         ttk.Button(btn_row2, text="Remove", command=self.remove_point).pack(side="left", expand=True, fill="x", padx=2)
@@ -276,13 +277,11 @@ class AutoClicker:
         self.record_stop_hk_label.pack(side="left")
         ttk.Button(hk3, text="Change", width=7, command=lambda: self.change_hotkey("record_stop")).pack(side="left", padx=4)
 
-        # Profile + Actions
+        # Profile
         profile_frame = tk.Frame(self.root, bg="#1e1e2e")
         profile_frame.pack(fill="x", padx=10, pady=3)
         ttk.Button(profile_frame, text="Save Profile", command=self.save_profile).pack(side="left", expand=True, fill="x", padx=(0, 3))
-        ttk.Button(profile_frame, text="Load Profile", command=self.load_profile).pack(side="left", expand=True, fill="x", padx=3)
-        self.record_btn = ttk.Button(profile_frame, text="Record", command=self.toggle_recording)
-        self.record_btn.pack(side="left", expand=True, fill="x", padx=(3, 0))
+        ttk.Button(profile_frame, text="Load Profile", command=self.load_profile).pack(side="left", expand=True, fill="x", padx=(3, 0))
 
         action_frame = tk.Frame(self.root, bg="#1e1e2e")
         action_frame.pack(fill="x", padx=10, pady=2)
@@ -305,11 +304,14 @@ class AutoClicker:
                  bg="#1e1e2e", fg="#6c7086").pack(side="right")
 
     def on_default_type_change(self, event=None):
-        """Disable Hold spinbox when Double is selected."""
         if self.pt_type_var.get() == "Double":
             self.pt_hold_spin.config(state="disabled")
         else:
             self.pt_hold_spin.config(state="normal")
+
+    def set_record_indicator(self, active):
+        color = "#ef4444" if active else "#5c1a1a"
+        self.record_indicator.itemconfig("dot", fill=color)
 
     # -------------------- Live List Drag-and-Drop --------------------
     def on_list_drag_start(self, event):
@@ -398,11 +400,15 @@ class AutoClicker:
                 text = f"{prefix}WAIT {p.get('delay', 500)}ms"
             elif action == "key":
                 text = f"{prefix}KEY '{p.get('key', '?')}' x{p.get('count', 1)}"
+            elif action == "scroll":
+                direction = "UP" if p.get("dy", 0) > 0 else "DOWN"
+                if p.get("dx", 0) != 0:
+                    direction = "RIGHT" if p.get("dx", 0) > 0 else "LEFT"
+                text = f"{prefix}SCROLL {direction} ({p.get('x', 0)},{p.get('y', 0)}) x{p.get('count', 1)}"
             else:
                 text = f"{prefix}CLICK ({p['x']},{p['y']}) {p.get('type', 'Left')} x{p.get('count', 1)}"
             self.points_listbox.insert(tk.END, text)
 
-    # -------------------- Preview --------------------
     def clear_previews(self):
         for w in self.preview_windows:
             try:
@@ -412,7 +418,6 @@ class AutoClicker:
         self.preview_windows.clear()
 
     def show_point_preview(self, x, y, color="#f38ba8", label=""):
-        """Show a small always-on-top marker at screen coordinates (x, y)."""
         try:
             preview = tk.Toplevel(self.root)
             preview.overrideredirect(True)
@@ -431,7 +436,6 @@ class AutoClicker:
         except Exception:
             return None
 
-    # -------------------- Edit Popup --------------------
     def open_edit_popup(self):
         if self.is_running or self.is_recording or self.selected_index is None or self.selected_index >= len(self.points):
             return
@@ -439,12 +443,13 @@ class AutoClicker:
         action = p.get("action", "click")
 
         self.clear_previews()
-        # Show preview markers
         if action == "click":
             self.show_point_preview(p.get("x", 0), p.get("y", 0), "#89b4fa", "C")
         elif action == "drag":
             self.show_point_preview(p.get("x", 0), p.get("y", 0), "#a6e3a1", "S")
             self.show_point_preview(p.get("drag_x", 0), p.get("drag_y", 0), "#f38ba8", "E")
+        elif action == "scroll":
+            self.show_point_preview(p.get("x", 0), p.get("y", 0), "#cba6f7", "Sc")
 
         popup = tk.Toplevel(self.root)
         popup.title("Edit Item")
@@ -464,7 +469,6 @@ class AutoClicker:
         tk.Label(popup, text=f"Editing item #{self.selected_index + 1}", font=("Segoe UI", 11, "bold"),
                  bg="#1e1e2e", fg="#89b4fa").pack(pady=(10, 6))
 
-        # Name field (common)
         name_frame = tk.Frame(popup, bg="#1e1e2e")
         name_frame.pack(fill="x", padx=15, pady=(0, 6))
         tk.Label(name_frame, text="Name (optional):", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
@@ -486,8 +490,7 @@ class AutoClicker:
         elif action == "key":
             tk.Label(frame, text="Key:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
             key_var = tk.StringVar(value=p.get("key", "a"))
-            key_entry = ttk.Entry(frame, textvariable=key_var, width=12)
-            key_entry.grid(row=0, column=1, pady=2, padx=5)
+            ttk.Entry(frame, textvariable=key_var, width=12).grid(row=0, column=1, pady=2, padx=5)
             entries["key"] = key_var
             tk.Label(frame, text="(letter / f1-f12 / space / enter / ...)", bg="#1e1e2e",
                      fg="#6c7086", font=("Segoe UI", 8)).grid(row=1, column=0, columnspan=2, sticky="w")
@@ -500,6 +503,40 @@ class AutoClicker:
             var_delay = tk.IntVar(value=p.get("delay_after", 100))
             ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_delay, width=10,
                         validate="key", validatecommand=vcmd).grid(row=3, column=1, pady=2, padx=5)
+            entries["delay_after"] = var_delay
+
+        elif action == "scroll":
+            tk.Label(frame, text="X:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
+            var_x = tk.IntVar(value=p.get("x", 0))
+            ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_x, width=10,
+                        validate="key", validatecommand=vcmd).grid(row=0, column=1, pady=2, padx=5)
+            entries["x"] = var_x
+            tk.Label(frame, text="Y:", bg="#1e1e2e", fg="#cdd6f4").grid(row=1, column=0, sticky="w", pady=2)
+            var_y = tk.IntVar(value=p.get("y", 0))
+            ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_y, width=10,
+                        validate="key", validatecommand=vcmd).grid(row=1, column=1, pady=2, padx=5)
+            entries["y"] = var_y
+            tk.Label(frame, text="dx (horizontal):", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
+            var_dx = tk.IntVar(value=p.get("dx", 0))
+            ttk.Spinbox(frame, from_=-20, to=20, textvariable=var_dx, width=10,
+                        validate="key", validatecommand=vcmd).grid(row=2, column=1, pady=2, padx=5)
+            entries["dx"] = var_dx
+            tk.Label(frame, text="dy (vertical):", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=2)
+            var_dy = tk.IntVar(value=p.get("dy", 0))
+            ttk.Spinbox(frame, from_=-20, to=20, textvariable=var_dy, width=10,
+                        validate="key", validatecommand=vcmd).grid(row=3, column=1, pady=2, padx=5)
+            entries["dy"] = var_dy
+            tk.Label(frame, text="(+dy = UP, -dy = DOWN)", bg="#1e1e2e",
+                     fg="#6c7086", font=("Segoe UI", 8)).grid(row=4, column=0, columnspan=2, sticky="w")
+            tk.Label(frame, text="Repeat:", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=2)
+            var_count = tk.IntVar(value=p.get("count", 1))
+            ttk.Spinbox(frame, from_=1, to=100, textvariable=var_count, width=10,
+                        validate="key", validatecommand=vcmd).grid(row=5, column=1, pady=2, padx=5)
+            entries["count"] = var_count
+            tk.Label(frame, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=6, column=0, sticky="w", pady=2)
+            var_delay = tk.IntVar(value=p.get("delay_after", 50))
+            ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_delay, width=10,
+                        validate="key", validatecommand=vcmd).grid(row=6, column=1, pady=2, padx=5)
             entries["delay_after"] = var_delay
 
         elif action == "drag":
@@ -561,7 +598,7 @@ class AutoClicker:
                     hold_spin.config(state="normal")
 
             type_combo.bind("<<ComboboxSelected>>", on_type_change)
-            on_type_change()  # initial state
+            on_type_change()
 
             tk.Label(frame, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=2)
             var_delay = tk.IntVar(value=p.get("delay_after", 100))
@@ -576,6 +613,13 @@ class AutoClicker:
                     p["delay"] = max(1, int(entries["delay"].get()))
                 elif action == "key":
                     p["key"] = entries["key"].get().strip().lower()
+                    p["count"] = int(entries["count"].get())
+                    p["delay_after"] = int(entries["delay_after"].get())
+                elif action == "scroll":
+                    p["x"] = int(entries["x"].get())
+                    p["y"] = int(entries["y"].get())
+                    p["dx"] = int(entries["dx"].get())
+                    p["dy"] = int(entries["dy"].get())
                     p["count"] = int(entries["count"].get())
                     p["delay_after"] = int(entries["delay_after"].get())
                 elif action == "drag":
@@ -607,7 +651,6 @@ class AutoClicker:
         y = self.root.winfo_y() + 80
         popup.geometry(f"+{x}+{y}")
 
-    # -------------------- Add actions --------------------
     def add_wait(self):
         if self.is_running or self.is_recording:
             return
@@ -695,7 +738,6 @@ class AutoClicker:
     def start_add_point(self, mode):
         if self.is_running or self.is_recording:
             return
-        # Stop any existing click listener first
         if self.click_listener and self.click_listener.is_alive():
             try:
                 self.click_listener.stop()
@@ -767,7 +809,7 @@ class AutoClicker:
             messagebox.showwarning("Warning", "Stop the running sequence first.")
             return
         if self.is_recording:
-            self.stop_recording()
+            self.stop_recording(from_ui=True)
         else:
             self.start_recording()
 
@@ -776,6 +818,7 @@ class AutoClicker:
         self.record_events = []
         self.record_start_time = time.time()
         self.record_btn.config(text="Stop Rec")
+        self.set_record_indicator(True)
         self.status_label.config(text=f"Recording... Press {self.record_stop_hotkey.upper()} to stop", fg="#f38ba8")
         self.minimize_for_capture()
 
@@ -839,6 +882,24 @@ class AutoClicker:
                     self._rec_drag_start = None
             return True
 
+        def on_scroll(x, y, dx, dy):
+            if not self.is_recording:
+                return False
+            now = time.time()
+            delay_ms = int((now - self._rec_last_time) * 1000)
+            self._rec_last_time = now
+            if delay_ms > 30:
+                self.record_events.append({"action": "wait", "delay": delay_ms, "name": ""})
+            self.record_events.append({
+                "action": "scroll",
+                "x": x, "y": y,
+                "dx": int(dx), "dy": int(dy),
+                "count": 1,
+                "delay_after": 30,
+                "name": ""
+            })
+            return True
+
         def on_press(key):
             if not self.is_recording:
                 return False
@@ -859,12 +920,12 @@ class AutoClicker:
             })
             return True
 
-        self.record_mouse_listener = mouse.Listener(on_click=on_click)
+        self.record_mouse_listener = mouse.Listener(on_click=on_click, on_scroll=on_scroll)
         self.record_mouse_listener.start()
         self.record_keyboard_listener = KeyboardListener(on_press=on_press)
         self.record_keyboard_listener.start()
 
-    def stop_recording(self):
+    def stop_recording(self, from_ui=False):
         self.is_recording = False
         if self.record_mouse_listener:
             try:
@@ -881,6 +942,18 @@ class AutoClicker:
                 pass
             self.record_keyboard_listener = None
 
+        # If stopped via UI button, remove the last click (and optional short wait)
+        # that came from pressing the Stop Rec button itself.
+        if from_ui and self.record_events:
+            last = self.record_events[-1]
+            if last.get("action") == "click":
+                self.record_events.pop()
+                if self.record_events and self.record_events[-1].get("action") == "wait":
+                    self.record_events.pop()
+            elif last.get("action") == "wait":
+                # rare: only a wait was pending
+                pass
+
         count_before = len(self.points)
         self.points.extend(self.record_events)
         added = len(self.points) - count_before
@@ -888,9 +961,9 @@ class AutoClicker:
         self.refresh_points_list()
         self.restore_after_capture()
         self.record_btn.config(text="Record")
+        self.set_record_indicator(False)
         self.status_label.config(text=f"Recording stopped — {added} actions added", fg="#a6e3a1")
 
-    # -------------------- List management --------------------
     def move_up(self):
         if self.selected_index is None or self.selected_index == 0 or self.is_running or self.is_recording:
             return
@@ -935,7 +1008,6 @@ class AutoClicker:
     def toggle_topmost(self):
         self.root.attributes("-topmost", self.always_on_top.get())
 
-    # -------------------- Hotkeys --------------------
     def change_hotkey(self, which):
         self.force_english_keyboard()
         self.waiting_for_hotkey = which
@@ -985,7 +1057,7 @@ class AutoClicker:
                     return
 
                 if self.is_recording and kstr == self.record_stop_hotkey:
-                    self.root.after(0, self.stop_recording)
+                    self.root.after(0, lambda: self.stop_recording(from_ui=False))
                     return
 
                 if self.g_hotkey_enabled.get() and kstr == self.start_hotkey and not self.is_running and not self.is_recording:
@@ -1006,7 +1078,6 @@ class AutoClicker:
         except Exception:
             return default
 
-    # -------------------- Execution --------------------
     def start_clicking(self):
         if not self.points:
             messagebox.showwarning("Warning", "Add at least one point!")
@@ -1078,6 +1149,13 @@ class AutoClicker:
             except Exception:
                 pass
 
+    def perform_scroll(self, p, pos_rand):
+        x, y = self.apply_pos_random(p.get("x", 0), p.get("y", 0), pos_rand)
+        self.mouse.position = (x, y)
+        dx = p.get("dx", 0)
+        dy = p.get("dy", 0)
+        self.mouse.scroll(dx, dy)
+
     def click_loop(self, random_ms, pos_rand, max_cycles):
         cycle = 0
         total_points = len(self.points)
@@ -1129,6 +1207,16 @@ class AutoClicker:
                             if random_ms > 0:
                                 d += random.randint(-random_ms, random_ms)
                             time.sleep(max(0, d) / 1000.0)
+                elif action == "scroll":
+                    for i in range(count):
+                        if self.stop_flag:
+                            break
+                        self.perform_scroll(p, pos_rand)
+                        if i < count - 1 and delay_between > 0:
+                            d = delay_between
+                            if random_ms > 0:
+                                d += random.randint(-random_ms, random_ms)
+                            time.sleep(max(0, d) / 1000.0)
                 else:
                     for i in range(count):
                         if self.stop_flag:
@@ -1158,7 +1246,6 @@ class AutoClicker:
         self.stop_flag = True
         self.status_label.config(text="Stopping...", fg="#f9e2af")
 
-    # -------------------- Profile --------------------
     def save_profile(self):
         data = {
             "points": self.points,

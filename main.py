@@ -16,7 +16,7 @@ class AutoClicker:
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
 
-        self.version = "v2.9"
+        self.version = "v3.0"
 
         self.points = []
         self.selected_index = None
@@ -102,17 +102,17 @@ class AutoClicker:
         row1 = tk.Frame(settings_frame, bg="#1e1e2e")
         row1.pack(fill="x", pady=1)
 
-        tk.Label(row1, text="Hold (ms):", bg="#1e1e2e", fg="#cdd6f4", width=11, anchor="w").pack(side="left")
+        tk.Label(row1, text="Hold (ms):", bg="#1e1e2e", fg="#cdd6f4", width=14, anchor="w").pack(side="left")
         self.pt_hold_var = tk.IntVar(value=50)
         ttk.Spinbox(row1, from_=10, to=2000, textvariable=self.pt_hold_var, width=7,
                     validate="key", validatecommand=vcmd).pack(side="left")
 
-        tk.Label(row1, text="  Repeat:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left", padx=(6, 0))
+        tk.Label(row1, text="  Repeat:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left", padx=(8, 0))
         self.pt_count_var = tk.IntVar(value=1)
         ttk.Spinbox(row1, from_=1, to=100, textvariable=self.pt_count_var, width=5,
                     validate="key", validatecommand=vcmd).pack(side="left")
 
-        tk.Label(row1, text="  Type:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left", padx=(6, 0))
+        tk.Label(row1, text="  Type:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left", padx=(8, 0))
         self.pt_type_var = tk.StringVar(value="Left")
         self.pt_type_combo = ttk.Combobox(row1, textvariable=self.pt_type_var,
                                           values=["Left", "Right", "Double", "Middle"],
@@ -123,7 +123,7 @@ class AutoClicker:
         row2 = tk.Frame(settings_frame, bg="#1e1e2e")
         row2.pack(fill="x", pady=1)
 
-        tk.Label(row2, text="Delay After (ms):", bg="#1e1e2e", fg="#cdd6f4", width=11, anchor="w").pack(side="left")
+        tk.Label(row2, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4", width=22, anchor="w").pack(side="left")
         self.pt_delay_var = tk.IntVar(value=100)
         ttk.Spinbox(row2, from_=0, to=10000, textvariable=self.pt_delay_var, width=7,
                     validate="key", validatecommand=vcmd).pack(side="left")
@@ -321,14 +321,15 @@ class AutoClicker:
                 ("End X:", "drag_x"), ("End Y:", "drag_y"),
                 ("Duration (ms):", "hold"),
                 ("Repeat:", "count"),
-                ("Delay After (ms):", "delay_after")
+                ("Delay Between Repeats (ms):", "delay_after")
             ]
             for i, (label, key) in enumerate(labels):
                 tk.Label(frame, text=label, bg="#1e1e2e", fg="#cdd6f4").grid(row=i, column=0, sticky="w", pady=2)
                 default_val = p.get(key, 1 if key == "count" else 0)
                 var = tk.IntVar(value=default_val)
                 max_val = 100 if key == "count" else (99999 if key in ("hold", "delay_after") else 10000)
-                ttk.Spinbox(frame, from_=0 if key != "count" else 1, to=max_val,
+                from_val = 1 if key == "count" else 0
+                ttk.Spinbox(frame, from_=from_val, to=max_val,
                             textvariable=var, width=10, validate="key", validatecommand=vcmd).grid(row=i, column=1, pady=2, padx=5)
                 entries[key] = var
 
@@ -366,7 +367,7 @@ class AutoClicker:
             type_combo.set(p.get("type", "Left"))
             entries["type"] = var_type
 
-            tk.Label(frame, text="Delay After (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=2)
+            tk.Label(frame, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=2)
             var_delay = tk.IntVar(value=p.get("delay_after", 100))
             ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_delay, width=10,
                         validate="key", validatecommand=vcmd).grid(row=5, column=1, pady=2, padx=5)
@@ -672,28 +673,30 @@ class AutoClicker:
                     continue
 
                 count = p.get("count", 1)
+                delay_between = p.get("delay_after", 0)
 
                 if action == "drag":
-                    for _ in range(count):
+                    for i in range(count):
                         if self.stop_flag:
                             break
                         self.perform_drag(p, pos_rand)
-                        if count > 1:
-                            time.sleep(0.05)
+                        # Delay only BETWEEN repeats (not after the last one)
+                        if i < count - 1 and delay_between > 0:
+                            d = delay_between
+                            if random_ms > 0:
+                                d += random.randint(-random_ms, random_ms)
+                            time.sleep(max(0, d) / 1000.0)
                 else:
-                    for _ in range(count):
+                    for i in range(count):
                         if self.stop_flag:
                             break
                         self.perform_click(p, pos_rand)
-                        if count > 1:
-                            time.sleep(0.04)
-
-                delay = p.get("delay_after", 100)
-                if random_ms > 0:
-                    delay += random.randint(-random_ms, random_ms)
-                delay = max(0, delay)
-                if delay > 0 and not self.stop_flag:
-                    time.sleep(delay / 1000.0)
+                        # Delay only BETWEEN repeats (not after the last one)
+                        if i < count - 1 and delay_between > 0:
+                            d = delay_between
+                            if random_ms > 0:
+                                d += random.randint(-random_ms, random_ms)
+                            time.sleep(max(0, d) / 1000.0)
 
             cycle += 1
 

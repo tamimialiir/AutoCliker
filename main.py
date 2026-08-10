@@ -1,3 +1,4 @@
+import os
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import threading
@@ -24,13 +25,6 @@ SPECIAL_KEYS = {
     "cmd": Key.cmd, "caps_lock": Key.caps_lock,
 }
 
-MODIFIER_KEYS = {
-    Key.ctrl, Key.ctrl_l, Key.ctrl_r,
-    Key.alt, Key.alt_l, Key.alt_r,
-    Key.shift, Key.shift_l, Key.shift_r,
-    Key.cmd, Key.cmd_l, Key.cmd_r,
-}
-
 MODIFIER_NAME = {
     Key.ctrl: "ctrl", Key.ctrl_l: "ctrl", Key.ctrl_r: "ctrl",
     Key.alt: "alt", Key.alt_l: "alt", Key.alt_r: "alt",
@@ -38,18 +32,59 @@ MODIFIER_NAME = {
     Key.cmd: "cmd", Key.cmd_l: "cmd", Key.cmd_r: "cmd",
 }
 
+# Shifted symbol -> base key (US layout)
+SHIFT_SYMBOL_TO_BASE = {
+    "!": "1", "@": "2", "#": "3", "$": "4", "%": "5",
+    "^": "6", "&": "7", "*": "8", "(": "9", ")": "0",
+    "_": "-", "+": "=", "{": "[", "}": "]", "|": "\\",
+    ":": ";", "\"": "'", "<": ",", ">": ".", "?": "/",
+    "~": "`",
+}
 
-def key_to_str(key):
+
+def key_to_str(key, held_mods=None):
+    """
+    Convert pynput key to a stable physical-ish string.
+    held_mods: optional set of modifier names currently held (for unshifting).
+    """
+    held_mods = held_mods or set()
+
     if key in MODIFIER_NAME:
         return MODIFIER_NAME[key]
-    if isinstance(key, KeyCode):
-        if key.char:
-            return key.char.lower()
-        if key.vk is not None:
-            return f"vk_{key.vk}"
+
     if isinstance(key, Key):
-        name = str(key).replace("Key.", "")
-        return name.lower()
+        return str(key).replace("Key.", "").lower()
+
+    if isinstance(key, KeyCode):
+        vk = getattr(key, "vk", None)
+
+        # Prefer virtual-key for letters and digits (immune to Ctrl/Shift char distortion)
+        if vk is not None:
+            # A-Z
+            if 65 <= vk <= 90:
+                return chr(vk).lower()
+            # Top-row 0-9
+            if 48 <= vk <= 57:
+                return chr(vk)
+            # Numpad 0-9 (Windows)
+            if 96 <= vk <= 105:
+                return str(vk - 96)
+
+        ch = key.char
+        if ch is not None:
+            code = ord(ch)
+            # Ctrl+A .. Ctrl+Z produce codes 1..26
+            if 1 <= code <= 26:
+                return chr(ord("a") + code - 1)
+            if ch.isprintable():
+                # If Shift is held and we got a shifted symbol, map back to base key
+                if "shift" in held_mods and ch in SHIFT_SYMBOL_TO_BASE:
+                    return SHIFT_SYMBOL_TO_BASE[ch]
+                return ch.lower()
+
+        if vk is not None:
+            return f"vk_{vk}"
+
     return str(key).lower()
 
 
@@ -63,7 +98,6 @@ def str_to_key(s):
 
 
 def parse_key_combo(combo):
-    """Parse 'ctrl+shift+a' into (modifier_keys, main_key_str)."""
     parts = [p.strip().lower() for p in combo.split("+") if p.strip()]
     if not parts:
         return [], "a"
@@ -73,10 +107,6 @@ def parse_key_combo(combo):
     for p in parts[:-1]:
         if p in mod_order and p in SPECIAL_KEYS:
             modifiers.append(SPECIAL_KEYS[p])
-        elif p in SPECIAL_KEYS:
-            # treat unknown special as main if mis-parsed
-            pass
-    # if only modifiers typed, last is still main
     return modifiers, main
 
 
@@ -86,8 +116,15 @@ class AutoClicker:
         self.root.title("Auto Clicker")
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
-        self.version = "v4.7"
-
+        self.version = "v4.8"
+        
+        try:
+            icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.png")
+            self._app_icon = tk.PhotoImage(file=icon_path)
+            self.root.iconphoto(True, self._app_icon)
+        except Exception:
+            pass
+            
         self.points = []
         self.selected_index = None
         self.is_running = False
@@ -166,15 +203,10 @@ class AutoClicker:
         style = ttk.Style()
         style.theme_use("clam")
         style.configure("TCombobox",
-                        fieldbackground="#313244",
-                        background="#313244",
-                        foreground="#cdd6f4",
-                        arrowcolor="#cdd6f4",
-                        bordercolor="#45475a",
-                        darkcolor="#313244",
-                        lightcolor="#313244",
-                        selectbackground="#313244",
-                        selectforeground="#cdd6f4")
+                        fieldbackground="#313244", background="#313244",
+                        foreground="#cdd6f4", arrowcolor="#cdd6f4",
+                        bordercolor="#45475a", darkcolor="#313244", lightcolor="#313244",
+                        selectbackground="#313244", selectforeground="#cdd6f4")
         style.map("TCombobox",
                   fieldbackground=[("readonly", "#313244"), ("!disabled", "#313244")],
                   foreground=[("readonly", "#cdd6f4"), ("!disabled", "#cdd6f4")],
@@ -223,7 +255,7 @@ class AutoClicker:
         ttk.Spinbox(row2, from_=0, to=10000, textvariable=self.pt_delay_var, width=7,
                     validate="key", validatecommand=vcmd).pack(side="left")
 
-        points_frame = ttk.LabelFrame(self.root, text=" Points Sequence (Drag items to reorder) ", padding=5)
+        points_frame = ttk.LabelFrame(self.root, text=" Points Sequence", padding=5)
         points_frame.pack(fill="x", padx=10, pady=2)
 
         list_frame = tk.Frame(points_frame, bg="#1e1e2e")
@@ -452,14 +484,10 @@ class AutoClicker:
         return "break"
 
     def on_default_type_change(self, event=None):
-        if self.pt_type_var.get() == "Double":
-            self.pt_hold_spin.config(state="disabled")
-        else:
-            self.pt_hold_spin.config(state="normal")
+        self.pt_hold_spin.config(state="disabled" if self.pt_type_var.get() == "Double" else "normal")
 
     def set_record_indicator(self, active):
-        color = "#ef4444" if active else "#5c1a1a"
-        self.record_indicator.itemconfig("dot", fill=color)
+        self.record_indicator.itemconfig("dot", fill="#ef4444" if active else "#5c1a1a")
 
     def on_list_drag_start(self, event):
         if self.is_running or self.is_recording:
@@ -478,9 +506,7 @@ class AutoClicker:
         if self.is_running or self.is_recording or self.drag_start_index is None:
             return
         new_index = self.points_listbox.nearest(event.y)
-        if new_index == self.drag_current_index:
-            return
-        if not (0 <= new_index < len(self.points)):
+        if new_index == self.drag_current_index or not (0 <= new_index < len(self.points)):
             return
         item = self.points.pop(self.drag_current_index)
         self.points.insert(new_index, item)
@@ -584,8 +610,7 @@ class AutoClicker:
         if preview_win is None:
             return
         try:
-            x = int(x_var.get())
-            y = int(y_var.get())
+            x, y = int(x_var.get()), int(y_var.get())
             size = 28
             preview_win.geometry(f"{size}x{size}+{x - size // 2}+{y - size // 2}")
         except Exception:
@@ -598,8 +623,7 @@ class AutoClicker:
         action = p.get("action", "click")
 
         self.clear_previews()
-        preview_main = None
-        preview_end = None
+        preview_main = preview_end = None
         if action == "click":
             preview_main = self.show_point_preview(p.get("x", 0), p.get("y", 0), "#89b4fa", "C")
         elif action == "drag":
@@ -657,7 +681,7 @@ class AutoClicker:
             key_var = tk.StringVar(value=p.get("key", "a"))
             ttk.Entry(frame, textvariable=key_var, width=16).grid(row=0, column=1, pady=2, padx=5)
             entries["key"] = key_var
-            tk.Label(frame, text="e.g. a  |  ctrl+c  |  alt+shift+f4  |  cmd+v",
+            tk.Label(frame, text="e.g. a  |  ctrl+c  |  shift+3  |  alt+f4",
                      bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).grid(row=1, column=0, columnspan=2, sticky="w")
             tk.Label(frame, text="Repeat:", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
             var_count = tk.IntVar(value=p.get("count", 1))
@@ -682,26 +706,21 @@ class AutoClicker:
                         validate="key", validatecommand=vcmd).grid(row=1, column=1, pady=2, padx=5)
             entries["y"] = var_y
             bind_live_preview(var_x, var_y, preview_main)
-
             tk.Label(frame, text="Direction:", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
-            cur_dir = "UP" if p.get("dy", 0) >= 0 else "DOWN"
-            dir_var = tk.StringVar(value=cur_dir)
+            dir_var = tk.StringVar(value="UP" if p.get("dy", 0) >= 0 else "DOWN")
             ttk.Combobox(frame, textvariable=dir_var, values=["UP", "DOWN"],
                          state="readonly", width=8).grid(row=2, column=1, pady=2, padx=5)
             entries["direction"] = dir_var
-
             tk.Label(frame, text="Amount:", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=2)
             amount_var = tk.IntVar(value=abs(p.get("dy", 3)) or 3)
             ttk.Spinbox(frame, from_=1, to=20, textvariable=amount_var, width=10,
                         validate="key", validatecommand=vcmd).grid(row=3, column=1, pady=2, padx=5)
             entries["amount"] = amount_var
-
             tk.Label(frame, text="Repeat:", bg="#1e1e2e", fg="#cdd6f4").grid(row=4, column=0, sticky="w", pady=2)
             var_count = tk.IntVar(value=p.get("count", 1))
             ttk.Spinbox(frame, from_=1, to=100, textvariable=var_count, width=10,
                         validate="key", validatecommand=vcmd).grid(row=4, column=1, pady=2, padx=5)
             entries["count"] = var_count
-
             tk.Label(frame, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=2)
             var_delay = tk.IntVar(value=p.get("delay_after", 50))
             ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_delay, width=10,
@@ -709,21 +728,15 @@ class AutoClicker:
             entries["delay_after"] = var_delay
 
         elif action == "drag":
-            labels = [
-                ("Start X:", "x"), ("Start Y:", "y"),
-                ("End X:", "drag_x"), ("End Y:", "drag_y"),
-                ("Duration (ms):", "hold"),
-                ("Repeat:", "count"),
-                ("Delay Between Repeats (ms):", "delay_after")
-            ]
+            labels = [("Start X:", "x"), ("Start Y:", "y"), ("End X:", "drag_x"), ("End Y:", "drag_y"),
+                      ("Duration (ms):", "hold"), ("Repeat:", "count"), ("Delay Between Repeats (ms):", "delay_after")]
             for i, (label, key) in enumerate(labels):
                 tk.Label(frame, text=label, bg="#1e1e2e", fg="#cdd6f4").grid(row=i, column=0, sticky="w", pady=2)
-                default_val = p.get(key, 1 if key == "count" else 0)
-                var = tk.IntVar(value=default_val)
+                var = tk.IntVar(value=p.get(key, 1 if key == "count" else 0))
                 max_val = 100 if key == "count" else (99999 if key in ("hold", "delay_after") else 10000)
                 from_val = 1 if key == "count" else 0
-                ttk.Spinbox(frame, from_=from_val, to=max_val,
-                            textvariable=var, width=10, validate="key", validatecommand=vcmd).grid(row=i, column=1, pady=2, padx=5)
+                ttk.Spinbox(frame, from_=from_val, to=max_val, textvariable=var, width=10,
+                            validate="key", validatecommand=vcmd).grid(row=i, column=1, pady=2, padx=5)
                 entries[key] = var
             bind_live_preview(entries["x"], entries["y"], preview_main)
             bind_live_preview(entries["drag_x"], entries["drag_y"], preview_end)
@@ -740,20 +753,17 @@ class AutoClicker:
                         validate="key", validatecommand=vcmd).grid(row=1, column=1, pady=2, padx=5)
             entries["y"] = var_y
             bind_live_preview(var_x, var_y, preview_main)
-
             tk.Label(frame, text="Hold (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
             var_hold = tk.IntVar(value=p.get("hold", 50))
             hold_spin = ttk.Spinbox(frame, from_=10, to=2000, textvariable=var_hold, width=10,
                                     validate="key", validatecommand=vcmd)
             hold_spin.grid(row=2, column=1, pady=2, padx=5)
             entries["hold"] = var_hold
-
             tk.Label(frame, text="Repeat:", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=2)
             var_count = tk.IntVar(value=p.get("count", 1))
             ttk.Spinbox(frame, from_=1, to=100, textvariable=var_count, width=10,
                         validate="key", validatecommand=vcmd).grid(row=3, column=1, pady=2, padx=5)
             entries["count"] = var_count
-
             tk.Label(frame, text="Type:", bg="#1e1e2e", fg="#cdd6f4").grid(row=4, column=0, sticky="w", pady=2)
             var_type = tk.StringVar(value=p.get("type", "Left"))
             type_combo = ttk.Combobox(frame, textvariable=var_type,
@@ -764,14 +774,10 @@ class AutoClicker:
             entries["type"] = var_type
 
             def on_type_change(event=None):
-                if var_type.get() == "Double":
-                    hold_spin.config(state="disabled")
-                else:
-                    hold_spin.config(state="normal")
+                hold_spin.config(state="disabled" if var_type.get() == "Double" else "normal")
 
             type_combo.bind("<<ComboboxSelected>>", on_type_change)
             on_type_change()
-
             tk.Label(frame, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=2)
             var_delay = tk.IntVar(value=p.get("delay_after", 100))
             ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_delay, width=10,
@@ -791,9 +797,8 @@ class AutoClicker:
                     p["x"] = int(entries["x"].get())
                     p["y"] = int(entries["y"].get())
                     amount = max(1, int(entries["amount"].get()))
-                    direction = entries["direction"].get()
                     p["dx"] = 0
-                    p["dy"] = amount if direction == "UP" else -amount
+                    p["dy"] = amount if entries["direction"].get() == "UP" else -amount
                     p["count"] = int(entries["count"].get())
                     p["delay_after"] = int(entries["delay_after"].get())
                 elif action == "drag":
@@ -833,12 +838,9 @@ class AutoClicker:
         popup.resizable(False, False)
         popup.transient(self.root)
         popup.grab_set()
-
         vcmd = (popup.register(self.validate_number), "%d", "%P")
-
         tk.Label(popup, text="Wait Duration", font=("Segoe UI", 11, "bold"),
                  bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 8))
-
         row = tk.Frame(popup, bg="#1e1e2e")
         row.pack(padx=20, pady=4)
         tk.Label(row, text="Duration (ms):", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
@@ -851,8 +853,7 @@ class AutoClicker:
                 delay = max(1, int(delay_var.get()))
             except Exception:
                 delay = 500
-            point = {"action": "wait", "delay": delay, "name": ""}
-            self.points.append(point)
+            self.points.append({"action": "wait", "delay": delay, "name": ""})
             self.refresh_points_list()
             self.select_index(len(self.points) - 1)
             self.status_label.config(text=f"Wait {delay}ms added", fg="#a6e3a1")
@@ -862,7 +863,6 @@ class AutoClicker:
         btn_row.pack(pady=12)
         ttk.Button(btn_row, text="Add", command=apply, width=8).pack(side="left", padx=4)
         ttk.Button(btn_row, text="Cancel", command=popup.destroy, width=8).pack(side="left", padx=4)
-
         popup.update_idletasks()
         x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (popup.winfo_width() // 2)
         y = self.root.winfo_y() + 100
@@ -870,79 +870,61 @@ class AutoClicker:
         popup.bind("<Return>", lambda e: apply())
 
     def add_scroll_action(self, preset=None):
-        """preset: optional dict to pre-fill fields after position capture."""
         if self.is_running or self.is_recording:
             return
         if preset is None:
             preset = {}
-
         popup = tk.Toplevel(self.root)
         popup.title("Add Scroll")
         popup.configure(bg="#1e1e2e")
         popup.resizable(False, False)
         popup.transient(self.root)
         popup.grab_set()
-
         vcmd = (popup.register(self.validate_number), "%d", "%P")
         defaults = self.get_current_defaults()
 
         tk.Label(popup, text="Add Mouse Scroll", font=("Segoe UI", 11, "bold"),
                  bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 6))
-        tk.Label(popup, text="Capture Pos closes this dialog, then reopens it with coordinates",
+        tk.Label(popup, text="Capture Pos closes this dialog, then reopens with coordinates",
                  bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
 
         frame = tk.Frame(popup, bg="#1e1e2e")
         frame.pack(padx=15, pady=8)
-
         tk.Label(frame, text="X:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
         var_x = tk.IntVar(value=preset.get("x", 0))
         ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_x, width=10,
                     validate="key", validatecommand=vcmd).grid(row=0, column=1, pady=2, padx=5)
-
         tk.Label(frame, text="Y:", bg="#1e1e2e", fg="#cdd6f4").grid(row=1, column=0, sticky="w", pady=2)
         var_y = tk.IntVar(value=preset.get("y", 0))
         ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_y, width=10,
                     validate="key", validatecommand=vcmd).grid(row=1, column=1, pady=2, padx=5)
-
         tk.Label(frame, text="Direction:", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
         dir_var = tk.StringVar(value=preset.get("direction", "UP"))
         ttk.Combobox(frame, textvariable=dir_var, values=["UP", "DOWN"],
                      state="readonly", width=8).grid(row=2, column=1, pady=2, padx=5)
-
         tk.Label(frame, text="Amount:", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=2)
         amount_var = tk.IntVar(value=preset.get("amount", 3))
         ttk.Spinbox(frame, from_=1, to=20, textvariable=amount_var, width=10,
                     validate="key", validatecommand=vcmd).grid(row=3, column=1, pady=2, padx=5)
-
         tk.Label(frame, text="Repeat:", bg="#1e1e2e", fg="#cdd6f4").grid(row=4, column=0, sticky="w", pady=2)
         count_var = tk.IntVar(value=preset.get("count", defaults["count"]))
         ttk.Spinbox(frame, from_=1, to=100, textvariable=count_var, width=10,
                     validate="key", validatecommand=vcmd).grid(row=4, column=1, pady=2, padx=5)
-
         tk.Label(frame, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=2)
         delay_var = tk.IntVar(value=preset.get("delay_after", defaults["delay_after"]))
         ttk.Spinbox(frame, from_=0, to=10000, textvariable=delay_var, width=10,
                     validate="key", validatecommand=vcmd).grid(row=5, column=1, pady=2, padx=5)
 
         def capture_pos():
-            # Save current form values, DESTROY dialog (root cause fix), minimize, capture, reopen fresh
             try:
                 saved = {
-                    "x": int(var_x.get()),
-                    "y": int(var_y.get()),
-                    "direction": dir_var.get(),
-                    "amount": int(amount_var.get()),
-                    "count": int(count_var.get()),
-                    "delay_after": int(delay_var.get()),
+                    "x": int(var_x.get()), "y": int(var_y.get()),
+                    "direction": dir_var.get(), "amount": int(amount_var.get()),
+                    "count": int(count_var.get()), "delay_after": int(delay_var.get()),
                 }
             except Exception:
-                saved = {
-                    "direction": dir_var.get(),
-                    "amount": 3,
-                    "count": defaults["count"],
-                    "delay_after": defaults["delay_after"],
-                }
-
+                saved = {"direction": dir_var.get(), "amount": 3,
+                         "count": defaults["count"], "delay_after": defaults["delay_after"]}
             popup.destroy()
             self.status_label.config(text="Click to set scroll position...", fg="#f9e2af")
             self.root.iconify()
@@ -952,23 +934,19 @@ class AutoClicker:
                     return True
 
                 def finish():
-                    saved["x"] = x
-                    saved["y"] = y
+                    saved["x"], saved["y"] = x, y
                     self.restore_after_capture()
-                    # reopen a brand-new healthy dialog with saved + captured values
                     self.root.after(100, lambda: self.add_scroll_action(preset=saved))
                     self.status_label.config(text="Position captured", fg="#a6e3a1")
 
                 self.root.after(0, finish)
                 return False
 
-            listener = mouse.Listener(on_click=on_click)
-            listener.start()
+            mouse.Listener(on_click=on_click).start()
 
         def apply():
             try:
-                x = int(var_x.get())
-                y = int(var_y.get())
+                x, y = int(var_x.get()), int(var_y.get())
                 amount = max(1, int(amount_var.get()))
                 count = max(1, int(count_var.get()))
                 delay_after = max(0, int(delay_var.get()))
@@ -976,16 +954,11 @@ class AutoClicker:
                 messagebox.showerror("Error", "Invalid values", parent=popup)
                 return
             direction = dir_var.get()
-            dy = amount if direction == "UP" else -amount
-            point = {
-                "action": "scroll",
-                "x": x, "y": y,
-                "dx": 0, "dy": dy,
-                "count": count,
-                "delay_after": delay_after,
-                "name": ""
-            }
-            self.points.append(point)
+            self.points.append({
+                "action": "scroll", "x": x, "y": y, "dx": 0,
+                "dy": amount if direction == "UP" else -amount,
+                "count": count, "delay_after": delay_after, "name": ""
+            })
             self.refresh_points_list()
             self.select_index(len(self.points) - 1)
             self.status_label.config(text=f"Scroll {direction} added", fg="#a6e3a1")
@@ -996,7 +969,6 @@ class AutoClicker:
         ttk.Button(btn_row, text="Capture Pos", command=capture_pos, width=11).pack(side="left", padx=3)
         ttk.Button(btn_row, text="Add", command=apply, width=8).pack(side="left", padx=3)
         ttk.Button(btn_row, text="Cancel", command=popup.destroy, width=8).pack(side="left", padx=3)
-
         popup.update_idletasks()
         x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (popup.winfo_width() // 2)
         y = self.root.winfo_y() + 80
@@ -1014,15 +986,14 @@ class AutoClicker:
 
         tk.Label(popup, text="Key or combination", font=("Segoe UI", 10, "bold"),
                  bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 4))
-        tk.Label(popup, text="Type manually or Capture (supports Ctrl/Alt/Shift/Cmd + key)",
+        tk.Label(popup, text="Type manually or Capture (Ctrl/Alt/Shift/Cmd + key)",
                  bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
 
         key_var = tk.StringVar(value="")
         entry = ttk.Entry(popup, textvariable=key_var, width=22, font=("Segoe UI", 11))
         entry.pack(pady=8)
         entry.focus_set()
-
-        tk.Label(popup, text="Examples:  a   |   ctrl+c   |   alt+f4   |   shift+ctrl+s   |   cmd+v",
+        tk.Label(popup, text="Examples:  AaBb  |  ctrl+c  |  shift+3  |  alt+F4  |  cmd+v",
                  bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
 
         def capture_from_listener():
@@ -1031,20 +1002,16 @@ class AutoClicker:
 
             def on_press(key):
                 try:
-                    if key in MODIFIER_NAME:
-                        held_mods.add(MODIFIER_NAME[key])
+                    name = key_to_str(key, held_mods)
+                    if name in ("ctrl", "alt", "shift", "cmd"):
+                        held_mods.add(name)
                         return True
-                    kstr = key_to_str(key)
-                    if kstr in ("ctrl", "alt", "shift", "cmd"):
-                        held_mods.add(kstr)
-                        return True
-                    # Build combo: ordered modifiers + main key
                     order = ["ctrl", "alt", "shift", "cmd"]
                     mods = [m for m in order if m in held_mods]
-                    combo = "+".join(mods + [kstr]) if mods else kstr
+                    combo = "+".join(mods + [name]) if mods else name
                     self.root.after(0, lambda c=combo: key_var.set(c))
-                    self.root.after(0, lambda: self.status_label.config(
-                        text=f"Captured: {combo}", fg="#a6e3a1"))
+                    self.root.after(0, lambda c=combo: self.status_label.config(
+                        text=f"Captured: {c}", fg="#a6e3a1"))
                     return False
                 except Exception:
                     pass
@@ -1052,14 +1019,14 @@ class AutoClicker:
 
             def on_release(key):
                 try:
-                    if key in MODIFIER_NAME:
-                        held_mods.discard(MODIFIER_NAME[key])
+                    name = key_to_str(key)
+                    if name in ("ctrl", "alt", "shift", "cmd"):
+                        held_mods.discard(name)
                 except Exception:
                     pass
                 return True
 
-            listener = KeyboardListener(on_press=on_press, on_release=on_release)
-            listener.start()
+            KeyboardListener(on_press=on_press, on_release=on_release).start()
 
         def apply():
             k = key_var.get().strip().lower()
@@ -1067,14 +1034,12 @@ class AutoClicker:
                 messagebox.showwarning("Warning", "Enter or capture a key / combo.", parent=popup)
                 return
             defaults = self.get_current_defaults()
-            point = {
-                "action": "key",
-                "key": k,
+            self.points.append({
+                "action": "key", "key": k,
                 "count": defaults["count"],
                 "delay_after": defaults["delay_after"],
                 "name": ""
-            }
-            self.points.append(point)
+            })
             self.refresh_points_list()
             self.select_index(len(self.points) - 1)
             self.status_label.config(text=f"Key '{k}' added", fg="#a6e3a1")
@@ -1085,7 +1050,6 @@ class AutoClicker:
         ttk.Button(btn_row, text="Capture Key", command=capture_from_listener, width=12).pack(side="left", padx=4)
         ttk.Button(btn_row, text="Add", command=apply, width=8).pack(side="left", padx=4)
         ttk.Button(btn_row, text="Cancel", command=popup.destroy, width=8).pack(side="left", padx=4)
-
         popup.update_idletasks()
         x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (popup.winfo_width() // 2)
         y = self.root.winfo_y() + 100
@@ -1110,47 +1074,36 @@ class AutoClicker:
             except Exception:
                 pass
             self.click_listener = None
-
         self.adding_mode = mode
         self.temp_drag_start = None
         self.minimize_for_capture()
-        if mode == "click":
-            self.status_label.config(text="Click to add a new CLICK point...", fg="#f9e2af")
-        else:
-            self.status_label.config(text="Press & hold, then release to set DRAG...", fg="#f9e2af")
+        self.status_label.config(
+            text="Click to add a new CLICK point..." if mode == "click"
+            else "Press & hold, then release to set DRAG...",
+            fg="#f9e2af")
 
         def on_click(x, y, button, pressed):
             if button != Button.left:
                 return
             defaults = self.get_current_defaults()
-            if self.adding_mode == "click":
-                if pressed:
-                    point = {"action": "click", "x": x, "y": y, "name": "", **defaults}
-                    self.points.append(point)
-                    self.root.after(0, self.finish_add_point, f"Click point added ({x},{y})")
-                    return False
-            elif self.adding_mode == "drag":
-                if pressed:
-                    self.temp_drag_start = (x, y)
-                    self.adding_mode = "drag_release"
-                    return True
-            elif self.adding_mode == "drag_release":
-                if not pressed and self.temp_drag_start is not None:
-                    point = {
-                        "action": "drag",
-                        "x": self.temp_drag_start[0],
-                        "y": self.temp_drag_start[1],
-                        "drag_x": x,
-                        "drag_y": y,
-                        "hold": defaults["hold"],
-                        "count": defaults["count"],
-                        "delay_after": defaults["delay_after"],
-                        "type": "Left",
-                        "name": ""
-                    }
-                    self.points.append(point)
-                    self.root.after(0, self.finish_add_point, "Drag point added")
-                    return False
+            if self.adding_mode == "click" and pressed:
+                self.points.append({"action": "click", "x": x, "y": y, "name": "", **defaults})
+                self.root.after(0, self.finish_add_point, f"Click point added ({x},{y})")
+                return False
+            if self.adding_mode == "drag" and pressed:
+                self.temp_drag_start = (x, y)
+                self.adding_mode = "drag_release"
+                return True
+            if self.adding_mode == "drag_release" and not pressed and self.temp_drag_start is not None:
+                self.points.append({
+                    "action": "drag",
+                    "x": self.temp_drag_start[0], "y": self.temp_drag_start[1],
+                    "drag_x": x, "drag_y": y,
+                    "hold": defaults["hold"], "count": defaults["count"],
+                    "delay_after": defaults["delay_after"], "type": "Left", "name": ""
+                })
+                self.root.after(0, self.finish_add_point, "Drag point added")
+                return False
 
         self.click_listener = mouse.Listener(on_click=on_click)
         self.click_listener.start()
@@ -1190,16 +1143,12 @@ class AutoClicker:
         self.status_label.config(text=f"Recording... Press {self.record_stop_hotkey.upper()} to stop", fg="#f38ba8")
         self.minimize_for_capture()
 
-        if self.record_mouse_listener and self.record_mouse_listener.is_alive():
-            try:
-                self.record_mouse_listener.stop()
-            except Exception:
-                pass
-        if self.record_keyboard_listener and self.record_keyboard_listener.is_alive():
-            try:
-                self.record_keyboard_listener.stop()
-            except Exception:
-                pass
+        for lst in (self.record_mouse_listener, self.record_keyboard_listener):
+            if lst and getattr(lst, "is_alive", lambda: False)():
+                try:
+                    lst.stop()
+                except Exception:
+                    pass
 
         self._rec_drag_start = None
         self._rec_last_time = self.record_start_time
@@ -1211,44 +1160,25 @@ class AutoClicker:
             now = time.time()
             delay_ms = int((now - self._rec_last_time) * 1000)
             self._rec_last_time = now
-
-            btn_name = "Left"
-            if button == Button.right:
-                btn_name = "Right"
-            elif button == Button.middle:
-                btn_name = "Middle"
-
+            btn_name = {Button.right: "Right", Button.middle: "Middle"}.get(button, "Left")
             if pressed:
                 self._rec_drag_start = (x, y, btn_name, delay_ms)
-            else:
-                if self._rec_drag_start:
-                    sx, sy, bname, dly = self._rec_drag_start
-                    if abs(x - sx) > 5 or abs(y - sy) > 5:
-                        if dly > 30:
-                            self.record_events.append({"action": "wait", "delay": dly, "name": ""})
-                        self.record_events.append({
-                            "action": "drag",
-                            "x": sx, "y": sy,
-                            "drag_x": x, "drag_y": y,
-                            "hold": max(50, int((now - self.record_start_time) * 10) % 500 + 100),
-                            "count": 1,
-                            "delay_after": 50,
-                            "type": "Left",
-                            "name": ""
-                        })
-                    else:
-                        if dly > 30:
-                            self.record_events.append({"action": "wait", "delay": dly, "name": ""})
-                        self.record_events.append({
-                            "action": "click",
-                            "x": sx, "y": sy,
-                            "hold": 50,
-                            "count": 1,
-                            "delay_after": 50,
-                            "type": bname,
-                            "name": ""
-                        })
-                    self._rec_drag_start = None
+            elif self._rec_drag_start:
+                sx, sy, bname, dly = self._rec_drag_start
+                if dly > 30:
+                    self.record_events.append({"action": "wait", "delay": dly, "name": ""})
+                if abs(x - sx) > 5 or abs(y - sy) > 5:
+                    self.record_events.append({
+                        "action": "drag", "x": sx, "y": sy, "drag_x": x, "drag_y": y,
+                        "hold": max(50, int((now - self.record_start_time) * 10) % 500 + 100),
+                        "count": 1, "delay_after": 50, "type": "Left", "name": ""
+                    })
+                else:
+                    self.record_events.append({
+                        "action": "click", "x": sx, "y": sy, "hold": 50,
+                        "count": 1, "delay_after": 50, "type": bname, "name": ""
+                    })
+                self._rec_drag_start = None
             return True
 
         def on_scroll(x, y, dx, dy):
@@ -1262,40 +1192,30 @@ class AutoClicker:
             if dy == 0:
                 return True
             self.record_events.append({
-                "action": "scroll",
-                "x": x, "y": y,
-                "dx": 0, "dy": int(dy),
-                "count": 1,
-                "delay_after": 30,
-                "name": ""
+                "action": "scroll", "x": x, "y": y, "dx": 0, "dy": int(dy),
+                "count": 1, "delay_after": 30, "name": ""
             })
             return True
 
         def on_press(key):
             if not self.is_recording:
                 return False
-            kstr = key_to_str(key)
+            kstr = key_to_str(key, self._rec_held_mods)
             if kstr == self.record_stop_hotkey:
                 return True
-            if key in MODIFIER_NAME or kstr in ("ctrl", "alt", "shift", "cmd"):
-                self._rec_held_mods.add(MODIFIER_NAME.get(key, kstr))
+            if kstr in ("ctrl", "alt", "shift", "cmd"):
+                self._rec_held_mods.add(kstr)
                 return True
-
             now = time.time()
             delay_ms = int((now - self._rec_last_time) * 1000)
             self._rec_last_time = now
             if delay_ms > 30:
                 self.record_events.append({"action": "wait", "delay": delay_ms, "name": ""})
-
             order = ["ctrl", "alt", "shift", "cmd"]
             mods = [m for m in order if m in self._rec_held_mods]
             combo = "+".join(mods + [kstr]) if mods else kstr
             self.record_events.append({
-                "action": "key",
-                "key": combo,
-                "count": 1,
-                "delay_after": 50,
-                "name": ""
+                "action": "key", "key": combo, "count": 1, "delay_after": 50, "name": ""
             })
             return True
 
@@ -1303,8 +1223,9 @@ class AutoClicker:
             if not self.is_recording:
                 return False
             try:
-                if key in MODIFIER_NAME:
-                    self._rec_held_mods.discard(MODIFIER_NAME[key])
+                name = key_to_str(key)
+                if name in ("ctrl", "alt", "shift", "cmd"):
+                    self._rec_held_mods.discard(name)
             except Exception:
                 pass
             return True
@@ -1316,24 +1237,18 @@ class AutoClicker:
 
     def stop_recording(self, from_ui=False):
         self.is_recording = False
-        if self.record_mouse_listener:
-            try:
-                if self.record_mouse_listener.is_alive():
-                    self.record_mouse_listener.stop()
-            except Exception:
-                pass
-            self.record_mouse_listener = None
-        if self.record_keyboard_listener:
-            try:
-                if self.record_keyboard_listener.is_alive():
-                    self.record_keyboard_listener.stop()
-            except Exception:
-                pass
-            self.record_keyboard_listener = None
+        for attr in ("record_mouse_listener", "record_keyboard_listener"):
+            lst = getattr(self, attr)
+            if lst:
+                try:
+                    if lst.is_alive():
+                        lst.stop()
+                except Exception:
+                    pass
+                setattr(self, attr, None)
 
         if from_ui and self.record_events:
-            last = self.record_events[-1]
-            if last.get("action") == "click":
+            if self.record_events[-1].get("action") == "click":
                 self.record_events.pop()
                 if self.record_events and self.record_events[-1].get("action") == "wait":
                     self.record_events.pop()
@@ -1397,19 +1312,13 @@ class AutoClicker:
     def change_hotkey(self, which):
         self.force_english_keyboard()
         self.waiting_for_hotkey = which
-        label = {
-            "start": "START",
-            "stop": "STOP",
-            "record_start": "START RECORD",
-            "record_stop": "STOP RECORD"
-        }.get(which, which.upper())
-        self.status_label.config(text=f"Press a key for {label}...", fg="#f9e2af")
+        labels = {"start": "START", "stop": "STOP", "record_start": "START RECORD", "record_stop": "STOP RECORD"}
+        self.status_label.config(text=f"Press a key for {labels.get(which, which.upper())}...", fg="#f9e2af")
 
     def start_keyboard_listener(self):
         def on_press(key):
             try:
                 kstr = key_to_str(key)
-
                 if self.waiting_for_hotkey:
                     if key == Key.esc:
                         self.waiting_for_hotkey = None
@@ -1418,10 +1327,8 @@ class AutoClicker:
                     if not kstr or kstr in ("ctrl", "alt", "shift", "cmd"):
                         return
                     all_hk = {
-                        "start": self.start_hotkey,
-                        "stop": self.stop_hotkey,
-                        "record_start": self.record_start_hotkey,
-                        "record_stop": self.record_stop_hotkey
+                        "start": self.start_hotkey, "stop": self.stop_hotkey,
+                        "record_start": self.record_start_hotkey, "record_stop": self.record_stop_hotkey
                     }
                     for name, val in all_hk.items():
                         if name != self.waiting_for_hotkey and val == kstr:
@@ -1446,20 +1353,16 @@ class AutoClicker:
 
                 if self.is_focus_on_input():
                     return
-
                 if kstr == self.record_start_hotkey and not self.is_recording and not self.is_running:
                     self.root.after(0, self.start_recording)
                     return
-
                 if self.is_recording and kstr == self.record_stop_hotkey:
                     self.root.after(0, lambda: self.stop_recording(from_ui=False))
                     return
-
                 if self.g_hotkey_enabled.get() and kstr == self.start_hotkey and not self.is_running and not self.is_recording:
                     self.root.after(0, self.start_clicking)
                 if self.s_hotkey_enabled.get() and kstr == self.stop_hotkey and self.is_running:
                     self.root.after(0, self.stop_clicking)
-
             except Exception:
                 pass
 
@@ -1468,8 +1371,7 @@ class AutoClicker:
 
     def get_safe_int(self, var, default, min_val=0, max_val=999999):
         try:
-            value = int(var.get())
-            return max(min_val, min(value, max_val))
+            return max(min_val, min(int(var.get()), max_val))
         except Exception:
             return default
 
@@ -1487,24 +1389,19 @@ class AutoClicker:
         self.record_btn.config(state="disabled")
         self.status_label.config(text="Running...", fg="#89b4fa")
         self.progress_label.config(text="")
-
         random_ms = self.get_safe_int(self.random_var, 0, 0, 500)
         pos_rand = self.get_safe_int(self.pos_random_var, 0, 0, 50)
         cycles = self.get_safe_int(self.rep_var, 1, 1, 99999)
-        thread = threading.Thread(target=self.click_loop, args=(random_ms, pos_rand, cycles), daemon=True)
-        thread.start()
+        threading.Thread(target=self.click_loop, args=(random_ms, pos_rand, cycles), daemon=True).start()
 
     def apply_pos_random(self, x, y, pos_rand):
         if pos_rand <= 0:
             return x, y
-        rx = random.randint(-pos_rand, pos_rand)
-        ry = random.randint(-pos_rand, pos_rand)
-        return x + rx, y + ry
+        return x + random.randint(-pos_rand, pos_rand), y + random.randint(-pos_rand, pos_rand)
 
     def perform_click(self, p, pos_rand):
         x, y = self.apply_pos_random(p["x"], p["y"], pos_rand)
-        hold = p.get("hold", 50)
-        typ = p.get("type", "Left")
+        hold, typ = p.get("hold", 50), p.get("type", "Left")
         btn = {"Left": Button.left, "Right": Button.right, "Middle": Button.middle}.get(typ, Button.left)
         self.mouse.position = (x, y)
         if typ == "Double":
@@ -1525,16 +1422,12 @@ class AutoClicker:
             if self.stop_flag:
                 break
             t = i / steps
-            cx = int(sx + (ex - sx) * t)
-            cy = int(sy + (ey - sy) * t)
-            self.mouse.position = (cx, cy)
+            self.mouse.position = (int(sx + (ex - sx) * t), int(sy + (ey - sy) * t))
             time.sleep(duration / steps)
         self.mouse.release(Button.left)
 
     def perform_key(self, p):
-        """Supports single keys and combos like ctrl+c, alt+shift+f4, cmd+v."""
-        combo = p.get("key", "a")
-        modifiers, main = parse_key_combo(combo)
+        modifiers, main = parse_key_combo(p.get("key", "a"))
         main_obj = str_to_key(main)
         try:
             for mod in modifiers:
@@ -1564,74 +1457,45 @@ class AutoClicker:
         total_points = len(self.points)
         if self.infinite.get():
             max_cycles = float("inf")
-
         while not self.stop_flag and cycle < max_cycles:
             for idx, p in enumerate(self.points):
                 if self.stop_flag:
                     break
                 self.root.after(0, self.highlight_current, idx)
-
                 if self.infinite.get():
-                    prog_text = f"Cycle {cycle + 1} (∞)  |  Step {idx + 1}/{total_points}"
+                    prog = f"Cycle {cycle + 1} (∞)  |  Step {idx + 1}/{total_points}"
                 else:
-                    pct = int(((cycle * total_points + idx) / (max_cycles * total_points)) * 100) if max_cycles * total_points > 0 else 0
-                    prog_text = f"Cycle {cycle + 1}/{max_cycles}  |  Step {idx + 1}/{total_points}  |  {pct}%"
-                self.root.after(0, lambda t=prog_text: self.progress_label.config(text=t))
+                    pct = int(((cycle * total_points + idx) / (max_cycles * total_points)) * 100) if max_cycles * total_points else 0
+                    prog = f"Cycle {cycle + 1}/{max_cycles}  |  Step {idx + 1}/{total_points}  |  {pct}%"
+                self.root.after(0, lambda t=prog: self.progress_label.config(text=t))
 
                 action = p.get("action")
                 if action == "wait":
                     delay = p.get("delay", 500)
                     if random_ms > 0:
                         delay += random.randint(-random_ms, random_ms)
-                    delay = max(0, delay)
-                    time.sleep(delay / 1000.0)
+                    time.sleep(max(0, delay) / 1000.0)
                     continue
 
                 count = p.get("count", 1)
                 delay_between = p.get("delay_after", 0)
-
-                if action == "drag":
-                    for i in range(count):
-                        if self.stop_flag:
-                            break
-                        self.perform_drag(p, pos_rand)
-                        if i < count - 1 and delay_between > 0:
-                            d = delay_between
-                            if random_ms > 0:
-                                d += random.randint(-random_ms, random_ms)
-                            time.sleep(max(0, d) / 1000.0)
-                elif action == "key":
-                    for i in range(count):
-                        if self.stop_flag:
-                            break
+                runners = {
+                    "drag": self.perform_drag,
+                    "key": lambda pt, pr: self.perform_key(pt),
+                    "scroll": self.perform_scroll,
+                }
+                runner = runners.get(action, self.perform_click)
+                for i in range(count):
+                    if self.stop_flag:
+                        break
+                    if action == "key":
                         self.perform_key(p)
-                        if i < count - 1 and delay_between > 0:
-                            d = delay_between
-                            if random_ms > 0:
-                                d += random.randint(-random_ms, random_ms)
-                            time.sleep(max(0, d) / 1000.0)
-                elif action == "scroll":
-                    for i in range(count):
-                        if self.stop_flag:
-                            break
-                        self.perform_scroll(p, pos_rand)
-                        if i < count - 1 and delay_between > 0:
-                            d = delay_between
-                            if random_ms > 0:
-                                d += random.randint(-random_ms, random_ms)
-                            time.sleep(max(0, d) / 1000.0)
-                else:
-                    for i in range(count):
-                        if self.stop_flag:
-                            break
-                        self.perform_click(p, pos_rand)
-                        if i < count - 1 and delay_between > 0:
-                            d = delay_between
-                            if random_ms > 0:
-                                d += random.randint(-random_ms, random_ms)
-                            time.sleep(max(0, d) / 1000.0)
+                    else:
+                        runner(p, pos_rand)
+                    if i < count - 1 and delay_between > 0:
+                        d = delay_between + (random.randint(-random_ms, random_ms) if random_ms > 0 else 0)
+                        time.sleep(max(0, d) / 1000.0)
             cycle += 1
-
         self.is_running = False
         self.root.after(0, self.on_clicking_finished)
 
@@ -1665,8 +1529,7 @@ class AutoClicker:
             "always_on_top": self.always_on_top.get(),
             "defaults": self.get_current_defaults()
         }
-        path = filedialog.asksaveasfilename(defaultextension=".json",
-                                            filetypes=[("JSON Profile", "*.json")])
+        path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON Profile", "*.json")])
         if path:
             try:
                 with open(path, "w", encoding="utf-8") as f:
@@ -1687,8 +1550,7 @@ class AutoClicker:
                 data = json.load(f)
             self.points = data.get("points", [])
             for p in self.points:
-                if "name" not in p:
-                    p["name"] = ""
+                p.setdefault("name", "")
             self.refresh_points_list()
             self.random_var.set(data.get("random", 0))
             self.pos_random_var.set(data.get("pos_random", 0))

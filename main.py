@@ -6,6 +6,7 @@ import json
 import random
 import platform
 import ctypes
+import copy
 from pynput import mouse, keyboard
 from pynput.mouse import Button, Controller as MouseController
 from pynput.keyboard import Key, KeyCode, Listener as KeyboardListener, Controller as KeyboardController
@@ -51,13 +52,14 @@ class AutoClicker:
         self.root.title("Auto Clicker")
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
-        self.version = "v4.1"
+        self.version = "v4.2"
 
         self.points = []
         self.selected_index = None
         self.is_running = False
         self.stop_flag = False
         self.is_recording = False
+        self.clipboard_point = None  # for copy/cut/paste
 
         self.s_hotkey_enabled = tk.BooleanVar(value=True)
         self.g_hotkey_enabled = tk.BooleanVar(value=True)
@@ -88,6 +90,7 @@ class AutoClicker:
         self.force_english_keyboard()
         self.root.bind("<FocusIn>", lambda e: self.force_english_keyboard())
         self.setup_ui()
+        self.bind_list_shortcuts()
         self.start_keyboard_listener()
         self.root.update_idletasks()
         self.root.geometry(f"520x{self.root.winfo_reqheight()}")
@@ -141,7 +144,6 @@ class AutoClicker:
         tk.Label(self.root, text="Auto Clicker", font=("Segoe UI", 15, "bold"),
                  bg="#1e1e2e", fg="#89b4fa").pack(pady=(6, 3))
 
-        # Defaults
         settings_frame = ttk.LabelFrame(self.root, text=" Defaults for New Points ", padding=5)
         settings_frame.pack(fill="x", padx=10, pady=2)
 
@@ -172,7 +174,6 @@ class AutoClicker:
         ttk.Spinbox(row2, from_=0, to=10000, textvariable=self.pt_delay_var, width=7,
                     validate="key", validatecommand=vcmd).pack(side="left")
 
-        # Points List
         points_frame = ttk.LabelFrame(self.root, text=" Points Sequence (Drag items to reorder) ", padding=5)
         points_frame.pack(fill="x", padx=10, pady=2)
 
@@ -199,11 +200,9 @@ class AutoClicker:
         ttk.Button(btn_row, text="Add Wait", command=self.add_wait).pack(side="left", expand=True, fill="x", padx=2)
         ttk.Button(btn_row, text="Add Key", command=self.add_key_action).pack(side="left", expand=True, fill="x", padx=(2, 0))
 
-        # Row 2: Record (first) + Edit / Up / Down / Remove / Clear
         btn_row2 = tk.Frame(points_frame, bg="#1e1e2e")
         btn_row2.pack(fill="x", pady=(3, 0))
 
-        # Record button + red indicator
         rec_frame = tk.Frame(btn_row2, bg="#1e1e2e")
         rec_frame.pack(side="left", expand=True, fill="x", padx=(0, 2))
         self.record_indicator = tk.Canvas(rec_frame, width=14, height=14, bg="#1e1e2e",
@@ -220,7 +219,6 @@ class AutoClicker:
         ttk.Button(btn_row2, text="Remove", command=self.remove_point).pack(side="left", expand=True, fill="x", padx=2)
         ttk.Button(btn_row2, text="Clear", command=self.clear_points).pack(side="left", expand=True, fill="x", padx=(2, 0))
 
-        # Global Settings
         global_frame = ttk.LabelFrame(self.root, text=" Global Settings ", padding=5)
         global_frame.pack(fill="x", padx=10, pady=2)
 
@@ -250,7 +248,6 @@ class AutoClicker:
         ttk.Checkbutton(rowg3, text="Always on Top", variable=self.always_on_top,
                         command=self.toggle_topmost).pack(side="left")
 
-        # Hotkeys
         hotkey_frame = ttk.LabelFrame(self.root, text=" Hotkeys ", padding=5)
         hotkey_frame.pack(fill="x", padx=10, pady=2)
 
@@ -277,7 +274,6 @@ class AutoClicker:
         self.record_stop_hk_label.pack(side="left")
         ttk.Button(hk3, text="Change", width=7, command=lambda: self.change_hotkey("record_stop")).pack(side="left", padx=4)
 
-        # Profile
         profile_frame = tk.Frame(self.root, bg="#1e1e2e")
         profile_frame.pack(fill="x", padx=10, pady=3)
         ttk.Button(profile_frame, text="Save Profile", command=self.save_profile).pack(side="left", expand=True, fill="x", padx=(0, 3))
@@ -303,6 +299,73 @@ class AutoClicker:
         tk.Label(bottom, text=self.version, font=("Segoe UI", 8),
                  bg="#1e1e2e", fg="#6c7086").pack(side="right")
 
+    def bind_list_shortcuts(self):
+        """Keyboard shortcuts for the points list (cross-platform)."""
+        # Delete
+        self.points_listbox.bind("<Delete>", lambda e: self.on_list_delete(e))
+        self.root.bind("<Delete>", lambda e: self.on_list_delete(e))
+
+        # Copy / Cut / Paste — Windows & Linux (Control) + macOS (Command)
+        for mod in ("Control", "Command"):
+            self.root.bind(f"<{mod}-c>", lambda e: self.on_list_copy(e))
+            self.root.bind(f"<{mod}-C>", lambda e: self.on_list_copy(e))
+            self.root.bind(f"<{mod}-x>", lambda e: self.on_list_cut(e))
+            self.root.bind(f"<{mod}-X>", lambda e: self.on_list_cut(e))
+            self.root.bind(f"<{mod}-v>", lambda e: self.on_list_paste(e))
+            self.root.bind(f"<{mod}-V>", lambda e: self.on_list_paste(e))
+
+    def on_list_delete(self, event=None):
+        if self.is_focus_on_input() or self.is_running or self.is_recording:
+            return
+        if self.selected_index is not None:
+            self.remove_point()
+            return "break"
+
+    def on_list_copy(self, event=None):
+        if self.is_focus_on_input() or self.is_running or self.is_recording:
+            return
+        if self.selected_index is None or self.selected_index >= len(self.points):
+            return
+        self.clipboard_point = copy.deepcopy(self.points[self.selected_index])
+        self.status_label.config(text="Item copied", fg="#a6e3a1")
+        return "break"
+
+    def on_list_cut(self, event=None):
+        if self.is_focus_on_input() or self.is_running or self.is_recording:
+            return
+        if self.selected_index is None or self.selected_index >= len(self.points):
+            return
+        self.clipboard_point = copy.deepcopy(self.points[self.selected_index])
+        del self.points[self.selected_index]
+        self.selected_index = None
+        self.edit_btn.config(state="disabled")
+        self.refresh_points_list()
+        self.status_label.config(text="Item cut", fg="#f9e2af")
+        return "break"
+
+    def on_list_paste(self, event=None):
+        if self.is_focus_on_input() or self.is_running or self.is_recording:
+            return
+        if self.clipboard_point is None:
+            self.status_label.config(text="Clipboard empty", fg="#f38ba8")
+            return "break"
+        new_item = copy.deepcopy(self.clipboard_point)
+        # Insert after the currently selected item (or at end if nothing selected)
+        if self.selected_index is not None and 0 <= self.selected_index < len(self.points):
+            insert_at = self.selected_index + 1
+        else:
+            insert_at = len(self.points)
+        self.points.insert(insert_at, new_item)
+        self.refresh_points_list()
+        self.selected_index = insert_at
+        self.points_listbox.selection_clear(0, tk.END)
+        self.points_listbox.selection_set(insert_at)
+        self.points_listbox.activate(insert_at)
+        self.points_listbox.see(insert_at)
+        self.edit_btn.config(state="normal")
+        self.status_label.config(text="Item pasted", fg="#a6e3a1")
+        return "break"
+
     def on_default_type_change(self, event=None):
         if self.pt_type_var.get() == "Double":
             self.pt_hold_spin.config(state="disabled")
@@ -313,7 +376,6 @@ class AutoClicker:
         color = "#ef4444" if active else "#5c1a1a"
         self.record_indicator.itemconfig("dot", fill=color)
 
-    # -------------------- Live List Drag-and-Drop --------------------
     def on_list_drag_start(self, event):
         if self.is_running or self.is_recording:
             self.drag_start_index = None
@@ -436,6 +498,18 @@ class AutoClicker:
         except Exception:
             return None
 
+    def _move_preview(self, preview_win, x_var, y_var):
+        """Live-update a preview window position from IntVars."""
+        if preview_win is None:
+            return
+        try:
+            x = int(x_var.get())
+            y = int(y_var.get())
+            size = 28
+            preview_win.geometry(f"{size}x{size}+{x - size // 2}+{y - size // 2}")
+        except Exception:
+            pass
+
     def open_edit_popup(self):
         if self.is_running or self.is_recording or self.selected_index is None or self.selected_index >= len(self.points):
             return
@@ -443,13 +517,15 @@ class AutoClicker:
         action = p.get("action", "click")
 
         self.clear_previews()
+        preview_main = None
+        preview_end = None
         if action == "click":
-            self.show_point_preview(p.get("x", 0), p.get("y", 0), "#89b4fa", "C")
+            preview_main = self.show_point_preview(p.get("x", 0), p.get("y", 0), "#89b4fa", "C")
         elif action == "drag":
-            self.show_point_preview(p.get("x", 0), p.get("y", 0), "#a6e3a1", "S")
-            self.show_point_preview(p.get("drag_x", 0), p.get("drag_y", 0), "#f38ba8", "E")
+            preview_main = self.show_point_preview(p.get("x", 0), p.get("y", 0), "#a6e3a1", "S")
+            preview_end = self.show_point_preview(p.get("drag_x", 0), p.get("drag_y", 0), "#f38ba8", "E")
         elif action == "scroll":
-            self.show_point_preview(p.get("x", 0), p.get("y", 0), "#cba6f7", "Sc")
+            preview_main = self.show_point_preview(p.get("x", 0), p.get("y", 0), "#cba6f7", "Sc")
 
         popup = tk.Toplevel(self.root)
         popup.title("Edit Item")
@@ -479,6 +555,14 @@ class AutoClicker:
         frame = tk.Frame(popup, bg="#1e1e2e")
         frame.pack(padx=15, pady=5)
         entries = {}
+
+        def bind_live_preview(var_x, var_y, preview_win):
+            if preview_win is None:
+                return
+            def on_change(*_):
+                self._move_preview(preview_win, var_x, var_y)
+            var_x.trace_add("write", on_change)
+            var_y.trace_add("write", on_change)
 
         if action == "wait":
             tk.Label(frame, text="Wait Duration (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=3)
@@ -516,6 +600,7 @@ class AutoClicker:
             ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_y, width=10,
                         validate="key", validatecommand=vcmd).grid(row=1, column=1, pady=2, padx=5)
             entries["y"] = var_y
+            bind_live_preview(var_x, var_y, preview_main)
             tk.Label(frame, text="dx (horizontal):", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
             var_dx = tk.IntVar(value=p.get("dx", 0))
             ttk.Spinbox(frame, from_=-20, to=20, textvariable=var_dx, width=10,
@@ -556,6 +641,8 @@ class AutoClicker:
                 ttk.Spinbox(frame, from_=from_val, to=max_val,
                             textvariable=var, width=10, validate="key", validatecommand=vcmd).grid(row=i, column=1, pady=2, padx=5)
                 entries[key] = var
+            bind_live_preview(entries["x"], entries["y"], preview_main)
+            bind_live_preview(entries["drag_x"], entries["drag_y"], preview_end)
 
         else:  # click
             tk.Label(frame, text="X:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
@@ -568,6 +655,7 @@ class AutoClicker:
             ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_y, width=10,
                         validate="key", validatecommand=vcmd).grid(row=1, column=1, pady=2, padx=5)
             entries["y"] = var_y
+            bind_live_preview(var_x, var_y, preview_main)
 
             tk.Label(frame, text="Hold (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
             var_hold = tk.IntVar(value=p.get("hold", 50))
@@ -803,7 +891,6 @@ class AutoClicker:
         self.restore_after_capture()
         self.status_label.config(text=message, fg="#a6e3a1")
 
-    # -------------------- Recording --------------------
     def toggle_recording(self):
         if self.is_running:
             messagebox.showwarning("Warning", "Stop the running sequence first.")
@@ -942,17 +1029,12 @@ class AutoClicker:
                 pass
             self.record_keyboard_listener = None
 
-        # If stopped via UI button, remove the last click (and optional short wait)
-        # that came from pressing the Stop Rec button itself.
         if from_ui and self.record_events:
             last = self.record_events[-1]
             if last.get("action") == "click":
                 self.record_events.pop()
                 if self.record_events and self.record_events[-1].get("action") == "wait":
                     self.record_events.pop()
-            elif last.get("action") == "wait":
-                # rare: only a wait was pending
-                pass
 
         count_before = len(self.points)
         self.points.extend(self.record_events)

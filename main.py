@@ -1,3 +1,4 @@
+import sys
 import os
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
@@ -31,6 +32,17 @@ MODIFIER_NAME = {
     Key.shift: "shift", Key.shift_l: "shift", Key.shift_r: "shift",
     Key.cmd: "cmd", Key.cmd_l: "cmd", Key.cmd_r: "cmd",
 }
+
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_path, relative_path)
+    
+    
 
 # Shifted symbol -> base key (US layout)
 SHIFT_SYMBOL_TO_BASE = {
@@ -119,7 +131,7 @@ class AutoClicker:
         self.version = "v4.8"
         
         try:
-            icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.png")
+            icon_path = resource_path("icon.png")
             self._app_icon = tk.PhotoImage(file=icon_path)
             self.root.iconphoto(True, self._app_icon)
         except Exception:

@@ -16,7 +16,7 @@ class AutoClicker:
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
 
-        self.version = "v2.8"
+        self.version = "v2.9"
 
         self.points = []
         self.selected_index = None
@@ -107,7 +107,7 @@ class AutoClicker:
         ttk.Spinbox(row1, from_=10, to=2000, textvariable=self.pt_hold_var, width=7,
                     validate="key", validatecommand=vcmd).pack(side="left")
 
-        tk.Label(row1, text="  Clicks:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left", padx=(6, 0))
+        tk.Label(row1, text="  Repeat:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left", padx=(6, 0))
         self.pt_count_var = tk.IntVar(value=1)
         ttk.Spinbox(row1, from_=1, to=100, textvariable=self.pt_count_var, width=5,
                     validate="key", validatecommand=vcmd).pack(side="left")
@@ -140,6 +140,7 @@ class AutoClicker:
                                          relief="flat", highlightthickness=0)
         self.points_listbox.pack(side="left", fill="x", expand=True)
         self.points_listbox.bind("<<ListboxSelect>>", self.on_point_select)
+        self.points_listbox.bind("<Double-Button-1>", lambda e: self.open_edit_popup())
 
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.points_listbox.yview)
         scrollbar.pack(side="right", fill="y")
@@ -249,7 +250,7 @@ class AutoClicker:
 
     def on_point_select(self, event=None):
         if self.is_running:
-            return  # ignore manual selection while running
+            return
         sel = self.points_listbox.curselection()
         if sel:
             self.selected_index = sel[0]
@@ -259,7 +260,6 @@ class AutoClicker:
                 self.edit_btn.config(state="disabled")
 
     def highlight_current(self, index):
-        """Highlight the currently executing step in the list"""
         try:
             self.points_listbox.selection_clear(0, tk.END)
             if 0 <= index < self.points_listbox.size():
@@ -277,7 +277,7 @@ class AutoClicker:
         for i, p in enumerate(self.points, 1):
             action = p.get("action")
             if action == "drag":
-                text = f"{i}. DRAG ({p['x']},{p['y']}) → ({p['drag_x']},{p['drag_y']}) {p.get('hold', 300)}ms"
+                text = f"{i}. DRAG ({p['x']},{p['y']}) → ({p['drag_x']},{p['drag_y']}) x{p.get('count', 1)}"
             elif action == "wait":
                 text = f"{i}. WAIT {p.get('delay', 500)}ms"
             else:
@@ -320,16 +320,19 @@ class AutoClicker:
                 ("Start X:", "x"), ("Start Y:", "y"),
                 ("End X:", "drag_x"), ("End Y:", "drag_y"),
                 ("Duration (ms):", "hold"),
+                ("Repeat:", "count"),
                 ("Delay After (ms):", "delay_after")
             ]
             for i, (label, key) in enumerate(labels):
                 tk.Label(frame, text=label, bg="#1e1e2e", fg="#cdd6f4").grid(row=i, column=0, sticky="w", pady=2)
-                var = tk.IntVar(value=p.get(key, 0))
-                ttk.Spinbox(frame, from_=0, to=99999 if key in ("hold", "delay_after") else 10000,
+                default_val = p.get(key, 1 if key == "count" else 0)
+                var = tk.IntVar(value=default_val)
+                max_val = 100 if key == "count" else (99999 if key in ("hold", "delay_after") else 10000)
+                ttk.Spinbox(frame, from_=0 if key != "count" else 1, to=max_val,
                             textvariable=var, width=10, validate="key", validatecommand=vcmd).grid(row=i, column=1, pady=2, padx=5)
                 entries[key] = var
 
-        else:
+        else:  # click
             tk.Label(frame, text="X:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
             var_x = tk.IntVar(value=p.get("x", 0))
             ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_x, width=10,
@@ -348,7 +351,7 @@ class AutoClicker:
                         validate="key", validatecommand=vcmd).grid(row=2, column=1, pady=2, padx=5)
             entries["hold"] = var_hold
 
-            tk.Label(frame, text="Clicks:", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=2)
+            tk.Label(frame, text="Repeat:", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=2)
             var_count = tk.IntVar(value=p.get("count", 1))
             ttk.Spinbox(frame, from_=1, to=100, textvariable=var_count, width=10,
                         validate="key", validatecommand=vcmd).grid(row=3, column=1, pady=2, padx=5)
@@ -374,7 +377,7 @@ class AutoClicker:
                 if action == "wait":
                     p["delay"] = max(1, int(entries["delay"].get()))
                 elif action == "drag":
-                    for key in ["x", "y", "drag_x", "drag_y", "hold", "delay_after"]:
+                    for key in ["x", "y", "drag_x", "drag_y", "hold", "count", "delay_after"]:
                         p[key] = int(entries[key].get())
                 else:
                     p["x"] = int(entries["x"].get())
@@ -463,7 +466,7 @@ class AutoClicker:
                         "drag_x": x,
                         "drag_y": y,
                         "hold": defaults["hold"],
-                        "count": 1,
+                        "count": defaults["count"],
                         "delay_after": defaults["delay_after"],
                         "type": "Left"
                     }
@@ -656,7 +659,6 @@ class AutoClicker:
                 if self.stop_flag:
                     break
 
-                # Live highlight the current step
                 self.root.after(0, self.highlight_current, idx)
 
                 action = p.get("action")
@@ -669,10 +671,16 @@ class AutoClicker:
                     time.sleep(delay / 1000.0)
                     continue
 
+                count = p.get("count", 1)
+
                 if action == "drag":
-                    self.perform_drag(p, pos_rand)
+                    for _ in range(count):
+                        if self.stop_flag:
+                            break
+                        self.perform_drag(p, pos_rand)
+                        if count > 1:
+                            time.sleep(0.05)
                 else:
-                    count = p.get("count", 1)
                     for _ in range(count):
                         if self.stop_flag:
                             break

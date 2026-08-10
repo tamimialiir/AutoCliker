@@ -16,7 +16,7 @@ class AutoClicker:
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
 
-        self.version = "v2.5"
+        self.version = "v2.6"
 
         self.points = []
         self.selected_index = None
@@ -27,8 +27,9 @@ class AutoClicker:
         self.infinite = tk.BooleanVar(value=False)
         self.always_on_top = tk.BooleanVar(value=False)
 
-        self.start_hotkey = "g"
-        self.stop_hotkey = "s"
+        # Default hotkeys changed
+        self.start_hotkey = "s"
+        self.stop_hotkey = "e"
 
         self.mouse = MouseController()
         self.click_listener = None
@@ -99,9 +100,11 @@ class AutoClicker:
 
         tk.Label(row1, text="  Type:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left", padx=(6, 0))
         self.pt_type_var = tk.StringVar(value="Left")
-        ttk.Combobox(row1, textvariable=self.pt_type_var,
-                     values=["Left", "Right", "Double", "Middle"],
-                     state="readonly", width=7).pack(side="left")
+        self.pt_type_combo = ttk.Combobox(row1, textvariable=self.pt_type_var,
+                                          values=["Left", "Right", "Double", "Middle"],
+                                          state="readonly", width=7)
+        self.pt_type_combo.pack(side="left")
+        self.pt_type_combo.set("Left")  # Force visual display
 
         row2 = tk.Frame(settings_frame, bg="#1e1e2e")
         row2.pack(fill="x", pady=1)
@@ -145,35 +148,41 @@ class AutoClicker:
         ttk.Button(btn_row2, text="Remove", command=self.remove_point).pack(side="left", expand=True, fill="x", padx=2)
         ttk.Button(btn_row2, text="Clear", command=self.clear_points).pack(side="left", expand=True, fill="x", padx=(2, 0))
 
-        # ========== Global Settings ==========
+        # ========== Global Settings (new layout) ==========
         global_frame = ttk.LabelFrame(self.root, text=" Global Settings ", padding=5)
         global_frame.pack(fill="x", padx=10, pady=2)
 
+        # Line 1: Random Time + Pos
         rowg1 = tk.Frame(global_frame, bg="#1e1e2e")
         rowg1.pack(fill="x", pady=1)
 
         tk.Label(rowg1, text="Random Time ±ms:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
         self.random_var = tk.IntVar(value=0)
         ttk.Spinbox(rowg1, from_=0, to=500, textvariable=self.random_var, width=5,
-                    validate="key", validatecommand=vcmd).pack(side="left", padx=(3, 10))
+                    validate="key", validatecommand=vcmd).pack(side="left", padx=(3, 15))
 
         tk.Label(rowg1, text="Pos ±px:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
         self.pos_random_var = tk.IntVar(value=0)
         ttk.Spinbox(rowg1, from_=0, to=50, textvariable=self.pos_random_var, width=4,
-                    validate="key", validatecommand=vcmd).pack(side="left", padx=(3, 10))
+                    validate="key", validatecommand=vcmd).pack(side="left", padx=(3, 0))
 
-        tk.Label(rowg1, text="Cycles:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
-        self.rep_var = tk.IntVar(value=1)
-        self.rep_spin = ttk.Spinbox(rowg1, from_=1, to=99999, textvariable=self.rep_var, width=5,
-                                    validate="key", validatecommand=vcmd)
-        self.rep_spin.pack(side="left", padx=(3, 8))
-
-        ttk.Checkbutton(rowg1, text="Infinite", variable=self.infinite,
-                        command=self.toggle_infinite).pack(side="left")
-
+        # Line 2: Cycles + Infinite
         rowg2 = tk.Frame(global_frame, bg="#1e1e2e")
         rowg2.pack(fill="x", pady=2)
-        ttk.Checkbutton(rowg2, text="Always on Top", variable=self.always_on_top,
+
+        tk.Label(rowg2, text="Cycles:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        self.rep_var = tk.IntVar(value=1)
+        self.rep_spin = ttk.Spinbox(rowg2, from_=1, to=99999, textvariable=self.rep_var, width=6,
+                                    validate="key", validatecommand=vcmd)
+        self.rep_spin.pack(side="left", padx=(3, 12))
+
+        ttk.Checkbutton(rowg2, text="Infinite", variable=self.infinite,
+                        command=self.toggle_infinite).pack(side="left")
+
+        # Line 3: Always on Top
+        rowg3 = tk.Frame(global_frame, bg="#1e1e2e")
+        rowg3.pack(fill="x", pady=2)
+        ttk.Checkbutton(rowg3, text="Always on Top", variable=self.always_on_top,
                         command=self.toggle_topmost).pack(side="left")
 
         # ========== Hotkeys ==========
@@ -234,7 +243,6 @@ class AutoClicker:
             self.selected_index = sel[0]
             self.edit_btn.config(state="normal")
         else:
-            # keep selected_index if possible, only disable edit if really none
             if self.selected_index is None:
                 self.edit_btn.config(state="disabled")
 
@@ -250,7 +258,6 @@ class AutoClicker:
                 text = f"{i}. CLICK ({p['x']},{p['y']}) {p.get('type', 'Left')} x{p.get('count', 1)}"
             self.points_listbox.insert(tk.END, text)
 
-    # -------------------- Edit Popup --------------------
     def open_edit_popup(self):
         if self.selected_index is None or self.selected_index >= len(self.points):
             return
@@ -292,12 +299,11 @@ class AutoClicker:
             for i, (label, key) in enumerate(labels):
                 tk.Label(frame, text=label, bg="#1e1e2e", fg="#cdd6f4").grid(row=i, column=0, sticky="w", pady=2)
                 var = tk.IntVar(value=p.get(key, 0))
-                ttk.Spinbox(frame, from_=0, to=99999 if "delay" in key or key == "hold" else 10000,
+                ttk.Spinbox(frame, from_=0, to=99999 if key in ("hold", "delay_after") else 10000,
                             textvariable=var, width=10, validate="key", validatecommand=vcmd).grid(row=i, column=1, pady=2, padx=5)
                 entries[key] = var
 
         else:  # click
-            # Coordinates
             tk.Label(frame, text="X:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
             var_x = tk.IntVar(value=p.get("x", 0))
             ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_x, width=10,
@@ -324,8 +330,11 @@ class AutoClicker:
 
             tk.Label(frame, text="Type:", bg="#1e1e2e", fg="#cdd6f4").grid(row=4, column=0, sticky="w", pady=2)
             var_type = tk.StringVar(value=p.get("type", "Left"))
-            ttk.Combobox(frame, textvariable=var_type, values=["Left", "Right", "Double", "Middle"],
-                         state="readonly", width=8).grid(row=4, column=1, pady=2, padx=5)
+            type_combo = ttk.Combobox(frame, textvariable=var_type,
+                                      values=["Left", "Right", "Double", "Middle"],
+                                      state="readonly", width=8)
+            type_combo.grid(row=4, column=1, pady=2, padx=5)
+            type_combo.set(p.get("type", "Left"))  # Force visual
             entries["type"] = var_type
 
             tk.Label(frame, text="Delay After (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=2)
@@ -364,7 +373,6 @@ class AutoClicker:
         ttk.Button(btn_frame, text="Cancel", command=popup.destroy, width=10).pack(side="left", padx=6)
 
         popup.update_idletasks()
-        # Center popup
         x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (popup.winfo_width() // 2)
         y = self.root.winfo_y() + 80
         popup.geometry(f"+{x}+{y}")
@@ -373,10 +381,7 @@ class AutoClicker:
         if self.is_running:
             return
         delay = self.get_safe_int(self.pt_delay_var, 500, 1, 60000)
-        point = {
-            "action": "wait",
-            "delay": delay
-        }
+        point = {"action": "wait", "delay": delay}
         self.points.append(point)
         self.refresh_points_list()
         self.status_label.config(text=f"Wait {delay}ms added", fg="#a6e3a1")
@@ -388,8 +393,9 @@ class AutoClicker:
         self.root.deiconify()
         self.root.lift()
         self.root.focus_force()
-        if self.always_on_top.get():
-            self.root.attributes("-topmost", True)
+        # Always bring to front after capture, then restore the real Always on Top setting
+        self.root.attributes("-topmost", True)
+        self.root.after(150, lambda: self.root.attributes("-topmost", self.always_on_top.get()))
 
     def start_add_point(self, mode):
         if self.is_running:
@@ -412,11 +418,7 @@ class AutoClicker:
 
             if self.adding_mode == "click":
                 if pressed:
-                    point = {
-                        "action": "click",
-                        "x": x, "y": y,
-                        **defaults
-                    }
+                    point = {"action": "click", "x": x, "y": y, **defaults}
                     self.points.append(point)
                     self.root.after(0, self.finish_add_point, f"Click point added ({x},{y})")
                     return False
@@ -649,7 +651,6 @@ class AutoClicker:
                         if count > 1:
                             time.sleep(0.04)
 
-                # delay after (for click & drag)
                 delay = p.get("delay_after", 100)
                 if random_ms > 0:
                     delay += random.randint(-random_ms, random_ms)
@@ -712,8 +713,8 @@ class AutoClicker:
             self.rep_var.set(data.get("cycles", 1))
             self.infinite.set(data.get("infinite", False))
             self.toggle_infinite()
-            self.start_hotkey = data.get("start_hotkey", "g")
-            self.stop_hotkey = data.get("stop_hotkey", "s")
+            self.start_hotkey = data.get("start_hotkey", "s")
+            self.stop_hotkey = data.get("stop_hotkey", "e")
             self.start_hk_label.config(text=f"Start Hotkey:  {self.start_hotkey.upper()}")
             self.stop_hk_label.config(text=f"Stop Hotkey:   {self.stop_hotkey.upper()}")
             self.g_hotkey_enabled.set(data.get("start_enabled", True))
@@ -726,6 +727,7 @@ class AutoClicker:
             self.pt_count_var.set(defaults.get("count", 1))
             self.pt_delay_var.set(defaults.get("delay_after", 100))
             self.pt_type_var.set(defaults.get("type", "Left"))
+            self.pt_type_combo.set(defaults.get("type", "Left"))
 
             self.selected_index = None
             self.edit_btn.config(state="disabled")

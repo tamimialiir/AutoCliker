@@ -52,7 +52,7 @@ class AutoClicker:
         self.root.title("Auto Clicker")
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
-        self.version = "v4.5"
+        self.version = "v4.6"
 
         self.points = []
         self.selected_index = None
@@ -159,7 +159,6 @@ class AutoClicker:
         tk.Label(self.root, text="Auto Clicker", font=("Segoe UI", 15, "bold"),
                  bg="#1e1e2e", fg="#89b4fa").pack(pady=(6, 3))
 
-        # Defaults
         settings_frame = ttk.LabelFrame(self.root, text=" Defaults for New Points ", padding=5)
         settings_frame.pack(fill="x", padx=10, pady=2)
 
@@ -190,7 +189,6 @@ class AutoClicker:
         ttk.Spinbox(row2, from_=0, to=10000, textvariable=self.pt_delay_var, width=7,
                     validate="key", validatecommand=vcmd).pack(side="left")
 
-        # Points List
         points_frame = ttk.LabelFrame(self.root, text=" Points Sequence (Drag items to reorder) ", padding=5)
         points_frame.pack(fill="x", padx=10, pady=2)
 
@@ -237,7 +235,6 @@ class AutoClicker:
         ttk.Button(btn_row2, text="Remove", command=self.remove_point).pack(side="left", expand=True, fill="x", padx=2)
         ttk.Button(btn_row2, text="Clear", command=self.clear_points).pack(side="left", expand=True, fill="x", padx=(2, 0))
 
-        # ── Global Settings ──
         global_frame = ttk.LabelFrame(self.root, text=" Global Settings ", padding=8)
         global_frame.pack(fill="x", padx=10, pady=2)
 
@@ -291,7 +288,6 @@ class AutoClicker:
         ttk.Checkbutton(op, text="Always on Top", variable=self.always_on_top,
                         command=self.toggle_topmost).pack(side="left", padx=(10, 0))
 
-        # ── Hotkeys (2x2) ──
         hotkey_frame = ttk.LabelFrame(self.root, text=" Hotkeys ", padding=8)
         hotkey_frame.pack(fill="x", padx=10, pady=2)
 
@@ -339,7 +335,6 @@ class AutoClicker:
         self.record_stop_hk_label.pack(side="left")
         ttk.Button(hs4, text="Change", width=6, command=lambda: self.change_hotkey("record_stop")).pack(side="right")
 
-        # Profile
         profile_frame = tk.Frame(self.root, bg="#1e1e2e")
         profile_frame.pack(fill="x", padx=10, pady=3)
         ttk.Button(profile_frame, text="Save Profile", command=self.save_profile).pack(side="left", expand=True, fill="x", padx=(0, 3))
@@ -514,7 +509,6 @@ class AutoClicker:
             prefix = f"{i}. "
             if name:
                 prefix += f"[{name}] "
-
             action = p.get("action")
             if action == "drag":
                 text = f"{prefix}DRAG ({p['x']},{p['y']}) → ({p['drag_x']},{p['drag_y']}) x{p.get('count', 1)}"
@@ -567,6 +561,48 @@ class AutoClicker:
         except Exception:
             pass
 
+    def pick_screen_position(self, on_picked, on_cancel=None):
+        """Fullscreen overlay to pick a screen coordinate. No minimize/withdraw."""
+        overlay = tk.Toplevel(self.root)
+        overlay.title("Pick Position")
+        overlay.attributes("-topmost", True)
+        overlay.attributes("-alpha", 0.25)
+        overlay.configure(bg="#11111b")
+        overlay.config(cursor="crosshair")
+        # Cover primary screen
+        sw = overlay.winfo_screenwidth()
+        sh = overlay.winfo_screenheight()
+        overlay.geometry(f"{sw}x{sh}+0+0")
+        overlay.overrideredirect(True)
+        overlay.focus_force()
+        overlay.grab_set()
+
+        hint = tk.Label(overlay,
+                        text="Click anywhere to set position   |   Esc to cancel",
+                        fg="#cdd6f4", bg="#11111b", font=("Segoe UI", 14, "bold"))
+        hint.place(relx=0.5, rely=0.08, anchor="center")
+
+        def finish_pick(event):
+            x, y = event.x_root, event.y_root
+            try:
+                overlay.grab_release()
+            except Exception:
+                pass
+            overlay.destroy()
+            on_picked(x, y)
+
+        def finish_cancel(event=None):
+            try:
+                overlay.grab_release()
+            except Exception:
+                pass
+            overlay.destroy()
+            if on_cancel:
+                on_cancel()
+
+        overlay.bind("<Button-1>", finish_pick)
+        overlay.bind("<Escape>", finish_cancel)
+
     def open_edit_popup(self):
         if self.is_running or self.is_recording or self.selected_index is None or self.selected_index >= len(self.points):
             return
@@ -606,8 +642,7 @@ class AutoClicker:
         name_frame.pack(fill="x", padx=15, pady=(0, 6))
         tk.Label(name_frame, text="Name (optional):", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
         name_var = tk.StringVar(value=p.get("name", ""))
-        name_entry = ttk.Entry(name_frame, textvariable=name_var, width=22)
-        name_entry.pack(side="left", padx=(6, 0))
+        ttk.Entry(name_frame, textvariable=name_var, width=22).pack(side="left", padx=(6, 0))
 
         frame = tk.Frame(popup, bg="#1e1e2e")
         frame.pack(padx=15, pady=5)
@@ -664,9 +699,8 @@ class AutoClicker:
             tk.Label(frame, text="Direction:", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
             cur_dir = "UP" if p.get("dy", 0) >= 0 else "DOWN"
             dir_var = tk.StringVar(value=cur_dir)
-            dir_combo = ttk.Combobox(frame, textvariable=dir_var, values=["UP", "DOWN"],
-                                     state="readonly", width=8)
-            dir_combo.grid(row=2, column=1, pady=2, padx=5)
+            ttk.Combobox(frame, textvariable=dir_var, values=["UP", "DOWN"],
+                         state="readonly", width=8).grid(row=2, column=1, pady=2, padx=5)
             entries["direction"] = dir_var
 
             tk.Label(frame, text="Amount:", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=2)
@@ -707,7 +741,7 @@ class AutoClicker:
             bind_live_preview(entries["x"], entries["y"], preview_main)
             bind_live_preview(entries["drag_x"], entries["drag_y"], preview_end)
 
-        else:  # click
+        else:
             tk.Label(frame, text="X:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
             var_x = tk.IntVar(value=p.get("x", 0))
             ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_x, width=10,
@@ -859,113 +893,11 @@ class AutoClicker:
         popup.grab_set()
 
         vcmd = (popup.register(self.validate_number), "%d", "%P")
-
-        tk.Label(popup, text="Add Mouse Scroll", font=("Segoe UI", 11, "bold"),
-                 bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 6))
-        tk.Label(popup, text="Click on screen to capture position, or enter manually",
-                 bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
-
-        frame = tk.Frame(popup, bg="#1e1e2e")
-        frame.pack(padx=15, pady=8)
-
-        tk.Label(frame, text="X:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
-        var_x = tk.IntVar(value=0)
-        ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_x, width=10,
-                    validate="key", validatecommand=vcmd).grid(row=0, column=1, pady=2, padx=5)
-
-        tk.Label(frame, text="Y:", bg="#1e1e2e", fg="#cdd6f4").grid(row=1, column=0, sticky="w", pady=2)
-        var_y = tk.IntVar(value=0)
-        ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_y, width=10,
-                    validate="key", validatecommand=vcmd).grid(row=1, column=1, pady=2, padx=5)
-
-        tk.Label(frame, text="Direction:", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
-        dir_var = tk.StringVar(value="UP")
-        dir_combo = ttk.Combobox(frame, textvariable=dir_var,
-                                 values=["UP", "DOWN", "LEFT", "RIGHT"],
-                                 state="readonly", width=8)
-        dir_combo.grid(row=2, column=1, pady=2, padx=5)
-
-        tk.Label(frame, text="Amount:", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=2)
-        amount_var = tk.IntVar(value=3)
-        ttk.Spinbox(frame, from_=1, to=20, textvariable=amount_var, width=10,
-                    validate="key", validatecommand=vcmd).grid(row=3, column=1, pady=2, padx=5)
-
-        def capture_pos():
-            self.status_label.config(text="Click to set scroll position...", fg="#f9e2af")
-            self.minimize_for_capture()
-
-            def on_click(x, y, button, pressed):
-                if button == Button.left and pressed:
-                    self.root.after(0, lambda: var_x.set(x))
-                    self.root.after(0, lambda: var_y.set(y))
-                    self.root.after(0, self.restore_after_capture)
-                    self.root.after(0, lambda: self.status_label.config(text="Position captured", fg="#a6e3a1"))
-                    return False
-                return True
-
-            listener = mouse.Listener(on_click=on_click)
-            listener.start()
-
-        def apply():
-            try:
-                x = int(var_x.get())
-                y = int(var_y.get())
-                amount = max(1, int(amount_var.get()))
-            except Exception:
-                messagebox.showerror("Error", "Invalid values", parent=popup)
-                return
-            direction = dir_var.get()
-            dx, dy = 0, 0
-            if direction == "UP":
-                dy = amount
-            elif direction == "DOWN":
-                dy = -amount
-            elif direction == "LEFT":
-                dx = -amount
-            elif direction == "RIGHT":
-                dx = amount
-            defaults = self.get_current_defaults()
-            point = {
-                "action": "scroll",
-                "x": x, "y": y,
-                "dx": dx, "dy": dy,
-                "count": defaults["count"],
-                "delay_after": defaults["delay_after"],
-                "name": ""
-            }
-            self.points.append(point)
-            self.refresh_points_list()
-            self.select_index(len(self.points) - 1)
-            self.status_label.config(text=f"Scroll {direction} added", fg="#a6e3a1")
-            popup.destroy()
-
-        btn_row = tk.Frame(popup, bg="#1e1e2e")
-        btn_row.pack(pady=10)
-        ttk.Button(btn_row, text="Capture Pos", command=capture_pos, width=11).pack(side="left", padx=3)
-        ttk.Button(btn_row, text="Add", command=apply, width=8).pack(side="left", padx=3)
-        ttk.Button(btn_row, text="Cancel", command=popup.destroy, width=8).pack(side="left", padx=3)
-
-        popup.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (popup.winfo_width() // 2)
-        y = self.root.winfo_y() + 80
-        popup.geometry(f"+{x}+{y}")
-
-
-        if self.is_running or self.is_recording:
-            return
-        popup = tk.Toplevel(self.root)
-        popup.title("Add Scroll")
-        popup.configure(bg="#1e1e2e")
-        popup.resizable(False, False)
-        popup.transient(self.root)
-        popup.grab_set()
-
-        vcmd = (popup.register(self.validate_number), "%d", "%P")
         defaults = self.get_current_defaults()
 
         tk.Label(popup, text="Add Mouse Scroll", font=("Segoe UI", 11, "bold"),
                  bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 6))
-        tk.Label(popup, text="Click Capture Pos to pick screen location",
+        tk.Label(popup, text="Use Capture Pos to pick a screen location",
                  bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
 
         frame = tk.Frame(popup, bg="#1e1e2e")
@@ -983,9 +915,8 @@ class AutoClicker:
 
         tk.Label(frame, text="Direction:", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
         dir_var = tk.StringVar(value="UP")
-        dir_combo = ttk.Combobox(frame, textvariable=dir_var, values=["UP", "DOWN"],
-                                 state="readonly", width=8)
-        dir_combo.grid(row=2, column=1, pady=2, padx=5)
+        ttk.Combobox(frame, textvariable=dir_var, values=["UP", "DOWN"],
+                     state="readonly", width=8).grid(row=2, column=1, pady=2, padx=5)
 
         tk.Label(frame, text="Amount:", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=2)
         amount_var = tk.IntVar(value=3)
@@ -1003,41 +934,16 @@ class AutoClicker:
                     validate="key", validatecommand=vcmd).grid(row=5, column=1, pady=2, padx=5)
 
         def capture_pos():
-            """Fullscreen overlay picker — never minimize / withdraw the dialog."""
-            self.status_label.config(text="Click anywhere to set position (Esc = cancel)", fg="#f9e2af")
-
+            # Release modal grab so overlay can take over; do NOT minimize/withdraw popup
             try:
                 popup.grab_release()
             except Exception:
                 pass
+            self.status_label.config(text="Click on screen to set position...", fg="#f9e2af")
 
-            picker = tk.Toplevel(self.root)
-            picker.attributes("-fullscreen", True)
-            picker.attributes("-topmost", True)
-            try:
-                picker.attributes("-alpha", 0.25)
-            except Exception:
-                pass
-            picker.configure(bg="#11111b", cursor="crosshair")
-            picker.focus_force()
-
-            hint = tk.Label(
-                picker,
-                text="Click anywhere to set scroll position\nPress Esc to cancel",
-                font=("Segoe UI", 18, "bold"),
-                bg="#11111b",
-                fg="#cdd6f4",
-                justify="center"
-            )
-            hint.place(relx=0.5, rely=0.5, anchor="center")
-
-            def finish_pick(x, y):
-                var_x.set(int(x))
-                var_y.set(int(y))
-                try:
-                    picker.destroy()
-                except Exception:
-                    pass
+            def on_picked(x, y):
+                var_x.set(x)
+                var_y.set(y)
                 try:
                     popup.lift()
                     popup.focus_force()
@@ -1046,11 +952,7 @@ class AutoClicker:
                     pass
                 self.status_label.config(text="Position captured", fg="#a6e3a1")
 
-            def cancel_pick(_event=None):
-                try:
-                    picker.destroy()
-                except Exception:
-                    pass
+            def on_cancel():
                 try:
                     popup.lift()
                     popup.focus_force()
@@ -1059,288 +961,7 @@ class AutoClicker:
                     pass
                 self.status_label.config(text="Capture cancelled", fg="#f9e2af")
 
-            def on_click(event):
-                finish_pick(event.x_root, event.y_root)
-
-            picker.bind("<Button-1>", on_click)
-            picker.bind("<Escape>", cancel_pick)
-            # اگر کاربر پنجره را بست
-            picker.protocol("WM_DELETE_WINDOW", cancel_pick)
-
-        def apply():
-            try:
-                x = int(var_x.get())
-                y = int(var_y.get())
-                amount = max(1, int(amount_var.get()))
-                count = max(1, int(count_var.get()))
-                delay_after = max(0, int(delay_var.get()))
-            except Exception:
-                messagebox.showerror("Error", "Invalid values", parent=popup)
-                return
-            direction = dir_var.get()
-            dy = amount if direction == "UP" else -amount
-            point = {
-                "action": "scroll",
-                "x": x, "y": y,
-                "dx": 0, "dy": dy,
-                "count": count,
-                "delay_after": delay_after,
-                "name": ""
-            }
-            self.points.append(point)
-            self.refresh_points_list()
-            self.select_index(len(self.points) - 1)
-            self.status_label.config(text=f"Scroll {direction} added", fg="#a6e3a1")
-            popup.destroy()
-
-        btn_row = tk.Frame(popup, bg="#1e1e2e")
-        btn_row.pack(pady=10)
-        ttk.Button(btn_row, text="Capture Pos", command=capture_pos, width=11).pack(side="left", padx=3)
-        ttk.Button(btn_row, text="Add", command=apply, width=8).pack(side="left", padx=3)
-        ttk.Button(btn_row, text="Cancel", command=popup.destroy, width=8).pack(side="left", padx=3)
-
-        popup.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (popup.winfo_width() // 2)
-        y = self.root.winfo_y() + 80
-        popup.geometry(f"+{x}+{y}")
-
-        if self.is_running or self.is_recording:
-            return
-        popup = tk.Toplevel(self.root)
-        popup.title("Add Scroll")
-        popup.configure(bg="#1e1e2e")
-        popup.resizable(False, False)
-        popup.transient(self.root)
-        popup.grab_set()
-
-        vcmd = (popup.register(self.validate_number), "%d", "%P")
-        defaults = self.get_current_defaults()
-
-        tk.Label(popup, text="Add Mouse Scroll", font=("Segoe UI", 11, "bold"),
-                 bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 6))
-        tk.Label(popup, text="Click Capture Pos to pick screen location",
-                 bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
-
-        frame = tk.Frame(popup, bg="#1e1e2e")
-        frame.pack(padx=15, pady=8)
-
-        tk.Label(frame, text="X:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
-        var_x = tk.IntVar(value=0)
-        ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_x, width=10,
-                    validate="key", validatecommand=vcmd).grid(row=0, column=1, pady=2, padx=5)
-
-        tk.Label(frame, text="Y:", bg="#1e1e2e", fg="#cdd6f4").grid(row=1, column=0, sticky="w", pady=2)
-        var_y = tk.IntVar(value=0)
-        ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_y, width=10,
-                    validate="key", validatecommand=vcmd).grid(row=1, column=1, pady=2, padx=5)
-
-        tk.Label(frame, text="Direction:", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
-        dir_var = tk.StringVar(value="UP")
-        dir_combo = ttk.Combobox(frame, textvariable=dir_var, values=["UP", "DOWN"],
-                                 state="readonly", width=8)
-        dir_combo.grid(row=2, column=1, pady=2, padx=5)
-
-        tk.Label(frame, text="Amount:", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=2)
-        amount_var = tk.IntVar(value=3)
-        ttk.Spinbox(frame, from_=1, to=20, textvariable=amount_var, width=10,
-                    validate="key", validatecommand=vcmd).grid(row=3, column=1, pady=2, padx=5)
-
-        tk.Label(frame, text="Repeat:", bg="#1e1e2e", fg="#cdd6f4").grid(row=4, column=0, sticky="w", pady=2)
-        count_var = tk.IntVar(value=defaults["count"])
-        ttk.Spinbox(frame, from_=1, to=100, textvariable=count_var, width=10,
-                    validate="key", validatecommand=vcmd).grid(row=4, column=1, pady=2, padx=5)
-
-        tk.Label(frame, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=2)
-        delay_var = tk.IntVar(value=defaults["delay_after"])
-        ttk.Spinbox(frame, from_=0, to=10000, textvariable=delay_var, width=10,
-                    validate="key", validatecommand=vcmd).grid(row=5, column=1, pady=2, padx=5)
-
-        def capture_pos():
-            self.status_label.config(text="Click to set scroll position...", fg="#f9e2af")
-
-            # کاملاً مخفی کردن پاپ‌آپ (نه فقط minimize)
-            try:
-                popup.grab_release()
-            except Exception:
-                pass
-            popup.withdraw()
-
-            # minimize پنجره اصلی
-            self.root.iconify()
-
-            def on_click(x, y, button, pressed):
-                if button != Button.left or not pressed:
-                    return True
-
-                def finish():
-                    var_x.set(x)
-                    var_y.set(y)
-
-                    # اول فقط پنجره اصلی برگردد
-                    self.root.deiconify()
-                    self.root.update_idletasks()
-
-                    # با تأخیر پاپ‌آپ را نشان بده تا z-order درست شود
-                    def show_popup_again():
-                        try:
-                            popup.deiconify()
-                            popup.lift()
-                            popup.focus_force()
-                            popup.attributes("-topmost", True)
-                            popup.grab_set()
-                        except Exception:
-                            pass
-
-                        def release_topmost():
-                            try:
-                                popup.attributes("-topmost", False)
-                                popup.lift()
-                                popup.focus_force()
-                            except Exception:
-                                pass
-                            self.root.attributes("-topmost", self.always_on_top.get())
-
-                        popup.after(250, release_topmost)
-                        self.status_label.config(text="Position captured", fg="#a6e3a1")
-
-                    self.root.after(250, show_popup_again)
-
-                self.root.after(0, finish)
-                return False  # stop listener
-
-            listener = mouse.Listener(on_click=on_click)
-            listener.start()
-
-        def apply():
-            try:
-                x = int(var_x.get())
-                y = int(var_y.get())
-                amount = max(1, int(amount_var.get()))
-                count = max(1, int(count_var.get()))
-                delay_after = max(0, int(delay_var.get()))
-            except Exception:
-                messagebox.showerror("Error", "Invalid values", parent=popup)
-                return
-            direction = dir_var.get()
-            dy = amount if direction == "UP" else -amount
-            point = {
-                "action": "scroll",
-                "x": x, "y": y,
-                "dx": 0, "dy": dy,
-                "count": count,
-                "delay_after": delay_after,
-                "name": ""
-            }
-            self.points.append(point)
-            self.refresh_points_list()
-            self.select_index(len(self.points) - 1)
-            self.status_label.config(text=f"Scroll {direction} added", fg="#a6e3a1")
-            popup.destroy()
-
-        btn_row = tk.Frame(popup, bg="#1e1e2e")
-        btn_row.pack(pady=10)
-        ttk.Button(btn_row, text="Capture Pos", command=capture_pos, width=11).pack(side="left", padx=3)
-        ttk.Button(btn_row, text="Add", command=apply, width=8).pack(side="left", padx=3)
-        ttk.Button(btn_row, text="Cancel", command=popup.destroy, width=8).pack(side="left", padx=3)
-
-        popup.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (popup.winfo_width() // 2)
-        y = self.root.winfo_y() + 80
-        popup.geometry(f"+{x}+{y}")
-
-        if self.is_running or self.is_recording:
-            return
-        popup = tk.Toplevel(self.root)
-        popup.title("Add Scroll")
-        popup.configure(bg="#1e1e2e")
-        popup.resizable(False, False)
-        popup.transient(self.root)
-        popup.grab_set()
-
-        vcmd = (popup.register(self.validate_number), "%d", "%P")
-        defaults = self.get_current_defaults()
-
-        tk.Label(popup, text="Add Mouse Scroll", font=("Segoe UI", 11, "bold"),
-                 bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 6))
-        tk.Label(popup, text="Click Capture Pos to pick screen location",
-                 bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
-
-        frame = tk.Frame(popup, bg="#1e1e2e")
-        frame.pack(padx=15, pady=8)
-
-        tk.Label(frame, text="X:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
-        var_x = tk.IntVar(value=0)
-        ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_x, width=10,
-                    validate="key", validatecommand=vcmd).grid(row=0, column=1, pady=2, padx=5)
-
-        tk.Label(frame, text="Y:", bg="#1e1e2e", fg="#cdd6f4").grid(row=1, column=0, sticky="w", pady=2)
-        var_y = tk.IntVar(value=0)
-        ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_y, width=10,
-                    validate="key", validatecommand=vcmd).grid(row=1, column=1, pady=2, padx=5)
-
-        tk.Label(frame, text="Direction:", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
-        dir_var = tk.StringVar(value="UP")
-        dir_combo = ttk.Combobox(frame, textvariable=dir_var, values=["UP", "DOWN"],
-                                 state="readonly", width=8)
-        dir_combo.grid(row=2, column=1, pady=2, padx=5)
-
-        tk.Label(frame, text="Amount:", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=2)
-        amount_var = tk.IntVar(value=3)
-        ttk.Spinbox(frame, from_=1, to=20, textvariable=amount_var, width=10,
-                    validate="key", validatecommand=vcmd).grid(row=3, column=1, pady=2, padx=5)
-
-        tk.Label(frame, text="Repeat:", bg="#1e1e2e", fg="#cdd6f4").grid(row=4, column=0, sticky="w", pady=2)
-        count_var = tk.IntVar(value=defaults["count"])
-        ttk.Spinbox(frame, from_=1, to=100, textvariable=count_var, width=10,
-                    validate="key", validatecommand=vcmd).grid(row=4, column=1, pady=2, padx=5)
-
-        tk.Label(frame, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=2)
-        delay_var = tk.IntVar(value=defaults["delay_after"])
-        ttk.Spinbox(frame, from_=0, to=10000, textvariable=delay_var, width=10,
-                    validate="key", validatecommand=vcmd).grid(row=5, column=1, pady=2, padx=5)
-
-        def capture_pos():
-            self.status_label.config(text="Click to set scroll position...", fg="#f9e2af")
-            try:
-                popup.grab_release()
-            except Exception:
-                pass
-            self.root.iconify()
-
-            def on_click(x, y, button, pressed):
-                if button == Button.left and pressed:
-                    def finish():
-                        var_x.set(x)
-                        var_y.set(y)
-
-                        # 1) restore main without topmost fight
-                        self.root.deiconify()
-
-                        # 2) force popup back on top
-                        popup.deiconify()
-                        popup.lift()
-                        popup.focus_force()
-                        popup.attributes("-topmost", True)
-                        try:
-                            popup.grab_set()
-                        except Exception:
-                            pass
-
-                        def settle():
-                            popup.attributes("-topmost", False)
-                            popup.lift()
-                            popup.focus_force()
-                            self.root.attributes("-topmost", self.always_on_top.get())
-
-                        popup.after(120, settle)
-                        self.status_label.config(text="Position captured", fg="#a6e3a1")
-
-                    self.root.after(0, finish)
-                    return False
-                return True
-
-            listener = mouse.Listener(on_click=on_click)
-            listener.start()
+            self.pick_screen_position(on_picked, on_cancel)
 
         def apply():
             try:
@@ -1750,10 +1371,8 @@ class AutoClicker:
                         self.waiting_for_hotkey = None
                         self.status_label.config(text="Cancelled", fg="#f9e2af")
                         return
-
                     if not kstr:
                         return
-
                     all_hk = {
                         "start": self.start_hotkey,
                         "stop": self.stop_hotkey,
@@ -1765,7 +1384,6 @@ class AutoClicker:
                             self.status_label.config(text="Same key not allowed!", fg="#f38ba8")
                             self.waiting_for_hotkey = None
                             return
-
                     if self.waiting_for_hotkey == "start":
                         self.start_hotkey = kstr
                         self.start_hk_label.config(text=f"▶ Start: {kstr.upper()}")
@@ -1778,7 +1396,6 @@ class AutoClicker:
                     elif self.waiting_for_hotkey == "record_stop":
                         self.record_stop_hotkey = kstr
                         self.record_stop_hk_label.config(text=f"⏹ Stop Rec: {kstr.upper()}")
-
                     self.status_label.config(text=f"Hotkey → {kstr.upper()}", fg="#a6e3a1")
                     self.waiting_for_hotkey = None
                     return
@@ -1886,9 +1503,7 @@ class AutoClicker:
     def perform_scroll(self, p, pos_rand):
         x, y = self.apply_pos_random(p.get("x", 0), p.get("y", 0), pos_rand)
         self.mouse.position = (x, y)
-        dx = p.get("dx", 0)
-        dy = p.get("dy", 0)
-        self.mouse.scroll(dx, dy)
+        self.mouse.scroll(p.get("dx", 0), p.get("dy", 0))
 
     def click_loop(self, random_ms, pos_rand, max_cycles):
         cycle = 0

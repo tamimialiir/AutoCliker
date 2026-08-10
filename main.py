@@ -16,7 +16,7 @@ class AutoClicker:
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
 
-        self.version = "v3.0"
+        self.version = "v3.1"
 
         self.points = []
         self.selected_index = None
@@ -36,6 +36,9 @@ class AutoClicker:
         self.waiting_for_hotkey = None
         self.adding_mode = None
         self.temp_drag_start = None
+
+        # For list drag-reorder
+        self.drag_start_index = None
 
         self.force_english_keyboard()
         self.root.bind("<FocusIn>", lambda e: self.force_english_keyboard())
@@ -129,7 +132,7 @@ class AutoClicker:
                     validate="key", validatecommand=vcmd).pack(side="left")
 
         # Points List
-        points_frame = ttk.LabelFrame(self.root, text=" Points Sequence ", padding=5)
+        points_frame = ttk.LabelFrame(self.root, text=" Points Sequence  (Drag items to reorder) ", padding=5)
         points_frame.pack(fill="x", padx=10, pady=2)
 
         list_frame = tk.Frame(points_frame, bg="#1e1e2e")
@@ -141,6 +144,11 @@ class AutoClicker:
         self.points_listbox.pack(side="left", fill="x", expand=True)
         self.points_listbox.bind("<<ListboxSelect>>", self.on_point_select)
         self.points_listbox.bind("<Double-Button-1>", lambda e: self.open_edit_popup())
+
+        # Drag-and-drop reordering
+        self.points_listbox.bind("<ButtonPress-1>", self.on_list_drag_start)
+        self.points_listbox.bind("<B1-Motion>", self.on_list_drag_motion)
+        self.points_listbox.bind("<ButtonRelease-1>", self.on_list_drag_drop)
 
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.points_listbox.yview)
         scrollbar.pack(side="right", fill="y")
@@ -239,6 +247,39 @@ class AutoClicker:
         self.status_label.pack(side="left")
         tk.Label(bottom, text=self.version, font=("Segoe UI", 8),
                  bg="#1e1e2e", fg="#6c7086").pack(side="right")
+
+    # -------------------- List Drag-and-Drop Reorder --------------------
+    def on_list_drag_start(self, event):
+        if self.is_running:
+            self.drag_start_index = None
+            return
+        self.drag_start_index = self.points_listbox.nearest(event.y)
+
+    def on_list_drag_motion(self, event):
+        # Optional visual feedback can be added here
+        pass
+
+    def on_list_drag_drop(self, event):
+        if self.is_running or self.drag_start_index is None:
+            self.drag_start_index = None
+            return
+
+        drop_index = self.points_listbox.nearest(event.y)
+
+        if drop_index != self.drag_start_index and 0 <= drop_index < len(self.points):
+            # Reorder the data
+            item = self.points.pop(self.drag_start_index)
+            self.points.insert(drop_index, item)
+
+            self.refresh_points_list()
+            self.selected_index = drop_index
+            self.points_listbox.selection_clear(0, tk.END)
+            self.points_listbox.selection_set(drop_index)
+            self.points_listbox.activate(drop_index)
+            self.edit_btn.config(state="normal")
+            self.status_label.config(text="Order changed", fg="#a6e3a1")
+
+        self.drag_start_index = None
 
     def get_current_defaults(self):
         return {
@@ -680,7 +721,6 @@ class AutoClicker:
                         if self.stop_flag:
                             break
                         self.perform_drag(p, pos_rand)
-                        # Delay only BETWEEN repeats (not after the last one)
                         if i < count - 1 and delay_between > 0:
                             d = delay_between
                             if random_ms > 0:
@@ -691,7 +731,6 @@ class AutoClicker:
                         if self.stop_flag:
                             break
                         self.perform_click(p, pos_rand)
-                        # Delay only BETWEEN repeats (not after the last one)
                         if i < count - 1 and delay_between > 0:
                             d = delay_between
                             if random_ms > 0:

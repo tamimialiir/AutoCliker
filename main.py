@@ -128,7 +128,7 @@ class AutoClicker:
         self.root.title("Auto Clicker")
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
-        self.version = "v4.8"
+        self.version = "v4.81"
         
         try:
             icon_path = resource_path("icon.png")
@@ -1182,7 +1182,7 @@ class AutoClicker:
                 if abs(x - sx) > 5 or abs(y - sy) > 5:
                     self.record_events.append({
                         "action": "drag", "x": sx, "y": sy, "drag_x": x, "drag_y": y,
-                        "hold": max(50, int((now - self.record_start_time) * 10) % 500 + 100),
+                        "hold": 750,
                         "count": 1, "delay_after": 50, "type": "Left", "name": ""
                     })
                 else:
@@ -1411,6 +1411,17 @@ class AutoClicker:
             return x, y
         return x + random.randint(-pos_rand, pos_rand), y + random.randint(-pos_rand, pos_rand)
 
+    def interruptible_sleep(self, duration_ms):
+        """Sleep in small chunks so stop_flag can cancel immediately."""
+        if duration_ms <= 0:
+            return
+        end = time.time() + duration_ms / 1000.0
+        while time.time() < end:
+            if self.stop_flag:
+                return
+            remaining = end - time.time()
+            time.sleep(min(0.05, max(0, remaining)))
+
     def perform_click(self, p, pos_rand):
         x, y = self.apply_pos_random(p["x"], p["y"], pos_rand)
         hold, typ = p.get("hold", 50), p.get("type", "Left")
@@ -1420,7 +1431,7 @@ class AutoClicker:
             self.mouse.click(btn, 2)
         else:
             self.mouse.press(btn)
-            time.sleep(hold / 1000.0)
+            self.interruptible_sleep(hold)
             self.mouse.release(btn)
 
     def perform_drag(self, p, pos_rand):
@@ -1486,7 +1497,7 @@ class AutoClicker:
                     delay = p.get("delay", 500)
                     if random_ms > 0:
                         delay += random.randint(-random_ms, random_ms)
-                    time.sleep(max(0, delay) / 1000.0)
+                    self.interruptible_sleep(max(0, delay))
                     continue
 
                 count = p.get("count", 1)
@@ -1506,7 +1517,7 @@ class AutoClicker:
                         runner(p, pos_rand)
                     if i < count - 1 and delay_between > 0:
                         d = delay_between + (random.randint(-random_ms, random_ms) if random_ms > 0 else 0)
-                        time.sleep(max(0, d) / 1000.0)
+                        self.interruptible_sleep(max(0, d))
             cycle += 1
         self.is_running = False
         self.root.after(0, self.on_clicking_finished)

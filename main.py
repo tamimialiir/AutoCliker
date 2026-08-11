@@ -128,7 +128,7 @@ class AutoClicker:
         self.root.title("Auto Clicker")
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
-        self.version = "v4.81"
+        self.version = "v4.82"
         
         try:
             icon_path = resource_path("icon.png")

@@ -177,7 +177,13 @@ class AutoClicker:
         self.bind_list_shortcuts()
         self.start_keyboard_listener()
         self.root.update_idletasks()
-        self.root.geometry(f"540x{self.root.winfo_reqheight()}")
+        width = 540
+        height = self.root.winfo_reqheight()
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = (screen_width - width) // 2
+        y = ((screen_height - height) // 2) - 30
+        self.root.geometry(f"{width}x{height}+{x}+{y}")
 
     def force_english_keyboard(self):
         if platform.system() == "Windows":

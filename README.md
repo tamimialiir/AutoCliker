@@ -5,7 +5,7 @@ A powerful, modern **Auto Clicker** with full mouse & keyboard automation, recor
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Version](https://img.shields.io/badge/Version-v4.8-orange)
+![Version](https://img.shields.io/badge/Version-v4.81-orange)
 
 ---
 

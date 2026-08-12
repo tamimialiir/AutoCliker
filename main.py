@@ -128,7 +128,7 @@ class AutoClicker:
         self.root.title("Auto Clicker")
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
-        self.version = "v4.82"
+        self.version = "v4.9"
         
         try:
             icon_path = resource_path("icon.png")
@@ -140,19 +140,26 @@ class AutoClicker:
         self.points = []
         self.selected_index = None
         self.is_running = False
+        self.is_paused = False
         self.stop_flag = False
         self.is_recording = False
         self.clipboard_point = None
+        self.current_cycle = 0
+        self.current_step_index = 0
 
         self.s_hotkey_enabled = tk.BooleanVar(value=True)
         self.g_hotkey_enabled = tk.BooleanVar(value=True)
+        self.p_hotkey_enabled = tk.BooleanVar(value=True)
+        self.rs_hotkey_enabled = tk.BooleanVar(value=True)
+        self.re_hotkey_enabled = tk.BooleanVar(value=True)
         self.infinite = tk.BooleanVar(value=False)
         self.always_on_top = tk.BooleanVar(value=False)
 
         self.start_hotkey = "f1"
-        self.stop_hotkey = "f2"
-        self.record_start_hotkey = "f3"
-        self.record_stop_hotkey = "f4"
+        self.pause_hotkey = "f2"
+        self.stop_hotkey = "f3"
+        self.record_start_hotkey = "f4"
+        self.record_stop_hotkey = "f5"
 
         self.mouse = MouseController()
         self.keyboard = KeyboardController()
@@ -198,6 +205,10 @@ class AutoClicker:
             return False
         return focused.winfo_class() in ("TEntry", "TSpinbox", "Entry", "Spinbox")
 
+    def is_busy(self):
+        """True when actively running (not paused) or recording — blocks list edits."""
+        return self.is_recording or (self.is_running and not self.is_paused)
+
     def validate_number(self, action, value_if_allowed):
         if action == "1":
             return value_if_allowed.isdigit() or value_if_allowed == ""
@@ -237,6 +248,8 @@ class AutoClicker:
         style.configure("TLabelframe", background="#1e1e2e", foreground="#89b4fa")
         style.configure("TLabelframe.Label", background="#1e1e2e", foreground="#89b4fa", font=("Segoe UI", 9, "bold"))
         style.configure("TEntry", fieldbackground="#313244", foreground="#cdd6f4")
+        style.configure("Hotkey.TButton", padding=2, font=("Segoe UI", 6))
+        style.configure("Hotkey.TCheckbutton", background="#313244", foreground="#cdd6f4", font=("Segoe UI", 7))
 
         vcmd = (self.root.register(self.validate_number), "%d", "%P")
 
@@ -371,49 +384,42 @@ class AutoClicker:
         hotkey_frame = ttk.LabelFrame(self.root, text=" Hotkeys ", padding=8)
         hotkey_frame.pack(fill="x", padx=10, pady=2)
 
+        def make_hk_box(parent, label_attr, text, which, enabled_var, padx_cfg):
+            box = tk.Frame(parent, bg="#313244", padx=8, pady=5)
+            box.pack(side="left", fill="x", expand=True, **padx_cfg)
+            inner = tk.Frame(box, bg="#313244")
+            inner.pack(fill="x")
+            lbl = tk.Label(inner, text=text, bg="#313244", fg="#cdd6f4",
+                           font=("Segoe UI", 8), anchor="w")
+            lbl.pack(side="left")
+            setattr(self, label_attr, lbl)
+            ttk.Button(inner, text="Change", width=7,
+                       style="Hotkey.TButton",
+                       command=lambda w=which: self.change_hotkey(w)).pack(side="right", padx=(4, 0))
+            ttk.Checkbutton(inner, text="On", variable=enabled_var,
+                            style="Hotkey.TCheckbutton").pack(side="right")
+            return box
+
         hk_row1 = tk.Frame(hotkey_frame, bg="#1e1e2e")
         hk_row1.pack(fill="x", pady=(0, 4))
-
-        hk_start = tk.Frame(hk_row1, bg="#313244", padx=8, pady=5)
-        hk_start.pack(side="left", fill="x", expand=True, padx=(0, 4))
-        hs1 = tk.Frame(hk_start, bg="#313244")
-        hs1.pack(fill="x")
-        self.start_hk_label = tk.Label(hs1, text=f"▶ Start: {self.start_hotkey.upper()}",
-                                       bg="#313244", fg="#cdd6f4", font=("Segoe UI", 9), anchor="w")
-        self.start_hk_label.pack(side="left")
-        ttk.Button(hs1, text="Change", width=6, command=lambda: self.change_hotkey("start")).pack(side="right", padx=(4, 0))
-        ttk.Checkbutton(hs1, text="On", variable=self.g_hotkey_enabled).pack(side="right")
-
-        hk_stop = tk.Frame(hk_row1, bg="#313244", padx=8, pady=5)
-        hk_stop.pack(side="left", fill="x", expand=True, padx=(4, 0))
-        hs2 = tk.Frame(hk_stop, bg="#313244")
-        hs2.pack(fill="x")
-        self.stop_hk_label = tk.Label(hs2, text=f"⏹ Stop: {self.stop_hotkey.upper()}",
-                                      bg="#313244", fg="#cdd6f4", font=("Segoe UI", 9), anchor="w")
-        self.stop_hk_label.pack(side="left")
-        ttk.Button(hs2, text="Change", width=6, command=lambda: self.change_hotkey("stop")).pack(side="right", padx=(4, 0))
-        ttk.Checkbutton(hs2, text="On", variable=self.s_hotkey_enabled).pack(side="right")
+        make_hk_box(hk_row1, "start_hk_label",
+                    f"▶ Start: {self.start_hotkey.upper()}", "start",
+                    self.g_hotkey_enabled, {"padx": (0, 2)})
+        make_hk_box(hk_row1, "pause_hk_label",
+                    f"⏸ Pause: {self.pause_hotkey.upper()}", "pause",
+                    self.p_hotkey_enabled, {"padx": (2, 2)})
+        make_hk_box(hk_row1, "stop_hk_label",
+                    f"⏹ Stop: {self.stop_hotkey.upper()}", "stop",
+                    self.s_hotkey_enabled, {"padx": (2, 0)})
 
         hk_row2 = tk.Frame(hotkey_frame, bg="#1e1e2e")
         hk_row2.pack(fill="x")
-
-        hk_rs = tk.Frame(hk_row2, bg="#313244", padx=8, pady=5)
-        hk_rs.pack(side="left", fill="x", expand=True, padx=(0, 4))
-        hs3 = tk.Frame(hk_rs, bg="#313244")
-        hs3.pack(fill="x")
-        self.record_start_hk_label = tk.Label(hs3, text=f"⏺ Start Rec: {self.record_start_hotkey.upper()}",
-                                              bg="#313244", fg="#cdd6f4", font=("Segoe UI", 9), anchor="w")
-        self.record_start_hk_label.pack(side="left")
-        ttk.Button(hs3, text="Change", width=6, command=lambda: self.change_hotkey("record_start")).pack(side="right")
-
-        hk_re = tk.Frame(hk_row2, bg="#313244", padx=8, pady=5)
-        hk_re.pack(side="left", fill="x", expand=True, padx=(4, 0))
-        hs4 = tk.Frame(hk_re, bg="#313244")
-        hs4.pack(fill="x")
-        self.record_stop_hk_label = tk.Label(hs4, text=f"⏹ Stop Rec: {self.record_stop_hotkey.upper()}",
-                                             bg="#313244", fg="#cdd6f4", font=("Segoe UI", 9), anchor="w")
-        self.record_stop_hk_label.pack(side="left")
-        ttk.Button(hs4, text="Change", width=6, command=lambda: self.change_hotkey("record_stop")).pack(side="right")
+        make_hk_box(hk_row2, "record_start_hk_label",
+                    f"⏺ Start Rec: {self.record_start_hotkey.upper()}", "record_start",
+                    self.rs_hotkey_enabled, {"padx": (0, 2)})
+        make_hk_box(hk_row2, "record_stop_hk_label",
+                    f"⏹ Stop Rec: {self.record_stop_hotkey.upper()}", "record_stop",
+                    self.re_hotkey_enabled, {"padx": (2, 0)})
 
         profile_frame = tk.Frame(self.root, bg="#1e1e2e")
         profile_frame.pack(fill="x", padx=10, pady=3)
@@ -423,11 +429,13 @@ class AutoClicker:
         action_frame = tk.Frame(self.root, bg="#1e1e2e")
         action_frame.pack(fill="x", padx=10, pady=2)
         self.start_btn = ttk.Button(action_frame, text="Start", command=self.start_clicking)
-        self.start_btn.pack(side="left", expand=True, fill="x", padx=(0, 3))
+        self.start_btn.pack(side="left", expand=True, fill="x", padx=(0, 2))
+        self.pause_btn = ttk.Button(action_frame, text="Pause", command=self.toggle_pause, state="disabled")
+        self.pause_btn.pack(side="left", expand=True, fill="x", padx=2)
         self.stop_btn = ttk.Button(action_frame, text="Stop", command=self.stop_clicking, state="disabled")
-        self.stop_btn.pack(side="left", expand=True, fill="x", padx=3)
+        self.stop_btn.pack(side="left", expand=True, fill="x", padx=2)
         self.exit_btn = ttk.Button(action_frame, text="Exit", command=self.exit_app)
-        self.exit_btn.pack(side="left", expand=True, fill="x", padx=(3, 0))
+        self.exit_btn.pack(side="left", expand=True, fill="x", padx=(2, 0))
 
         bottom = tk.Frame(self.root, bg="#1e1e2e")
         bottom.pack(fill="x", padx=10, pady=(4, 6))
@@ -452,14 +460,14 @@ class AutoClicker:
             self.root.bind(f"<{mod}-V>", lambda e: self.on_list_paste(e))
 
     def on_list_delete(self, event=None):
-        if self.is_focus_on_input() or self.is_running or self.is_recording:
+        if self.is_focus_on_input() or self.is_busy():
             return
         if self.selected_index is not None:
             self.remove_point()
             return "break"
 
     def on_list_copy(self, event=None):
-        if self.is_focus_on_input() or self.is_running or self.is_recording:
+        if self.is_focus_on_input() or self.is_busy():
             return
         if self.selected_index is None or self.selected_index >= len(self.points):
             return
@@ -468,7 +476,7 @@ class AutoClicker:
         return "break"
 
     def on_list_cut(self, event=None):
-        if self.is_focus_on_input() or self.is_running or self.is_recording:
+        if self.is_focus_on_input() or self.is_busy():
             return
         if self.selected_index is None or self.selected_index >= len(self.points):
             return
@@ -477,7 +485,7 @@ class AutoClicker:
         del self.points[idx]
         self.refresh_points_list()
         if self.points:
-            self.select_index(idx)
+            self.select_index(min(idx, len(self.points) - 1))
         else:
             self.selected_index = None
             self.edit_btn.config(state="disabled")
@@ -485,7 +493,7 @@ class AutoClicker:
         return "break"
 
     def on_list_paste(self, event=None):
-        if self.is_focus_on_input() or self.is_running or self.is_recording:
+        if self.is_focus_on_input() or self.is_busy():
             return
         if self.clipboard_point is None:
             self.status_label.config(text="Clipboard empty", fg="#f38ba8")
@@ -508,7 +516,7 @@ class AutoClicker:
         self.record_indicator.itemconfig("dot", fill="#ef4444" if active else "#5c1a1a")
 
     def on_list_drag_start(self, event):
-        if self.is_running or self.is_recording:
+        if self.is_busy():
             self.drag_start_index = None
             self.drag_current_index = None
             return
@@ -521,7 +529,7 @@ class AutoClicker:
             self.points_listbox.activate(index)
 
     def on_list_drag_motion(self, event):
-        if self.is_running or self.is_recording or self.drag_start_index is None:
+        if self.is_busy() or self.drag_start_index is None:
             return
         new_index = self.points_listbox.nearest(event.y)
         if new_index == self.drag_current_index or not (0 <= new_index < len(self.points)):
@@ -553,7 +561,7 @@ class AutoClicker:
         }
 
     def on_point_select(self, event=None):
-        if self.is_running or self.is_recording:
+        if self.is_busy():
             return
         sel = self.points_listbox.curselection()
         if sel:
@@ -610,15 +618,44 @@ class AutoClicker:
             preview = tk.Toplevel(self.root)
             preview.overrideredirect(True)
             preview.attributes("-topmost", True)
-            size = 28
+            
+            transparent = "#010101"
+            try:
+                preview.attributes("-transparentcolor", transparent)
+            except Exception:
+                transparent = "#1e1e2e"
+
+            size = 36
             preview.geometry(f"{size}x{size}+{int(x) - size // 2}+{int(y) - size // 2}")
-            canvas = tk.Canvas(preview, width=size, height=size, bg="#1e1e2e",
+            
+            canvas = tk.Canvas(preview, width=size, height=size, bg=transparent,
                                highlightthickness=0, bd=0)
             canvas.pack()
-            canvas.create_oval(3, 3, size - 3, size - 3, outline=color, width=3)
-            canvas.create_oval(size // 2 - 3, size // 2 - 3, size // 2 + 3, size // 2 + 3, fill=color, outline="")
-            if label:
-                canvas.create_text(size // 2, size // 2, text=label, fill="white", font=("Segoe UI", 7, "bold"))
+
+            center = size // 2
+            outer_margin = 6
+            inner_r = 3
+            extend = 4
+            line_width = 1
+
+            canvas.create_line(outer_margin - extend, center,
+                               size - outer_margin + extend, center,
+                               fill=color, width=line_width)
+            canvas.create_line(center, outer_margin - extend,
+                               center, size - outer_margin + extend,
+                               fill=color, width=line_width)
+
+            canvas.create_oval(outer_margin, outer_margin,
+                               size - outer_margin, size - outer_margin,
+                               outline=color, width=2)
+
+            canvas.create_oval(center - inner_r, center - inner_r,
+                               center + inner_r, center + inner_r,
+                               fill=color, outline="")
+
+            canvas.create_oval(center - 2, center - 2, center + 2, center + 2,
+                               fill=transparent, outline="")
+
             self.preview_windows.append(preview)
             return preview
         except Exception:
@@ -629,13 +666,13 @@ class AutoClicker:
             return
         try:
             x, y = int(x_var.get()), int(y_var.get())
-            size = 28
+            size = 36
             preview_win.geometry(f"{size}x{size}+{x - size // 2}+{y - size // 2}")
         except Exception:
             pass
 
     def open_edit_popup(self):
-        if self.is_running or self.is_recording or self.selected_index is None or self.selected_index >= len(self.points):
+        if self.is_busy() or self.selected_index is None or self.selected_index >= len(self.points):
             return
         p = self.points[self.selected_index]
         action = p.get("action", "click")
@@ -848,7 +885,7 @@ class AutoClicker:
         popup.geometry(f"+{x}+{y}")
 
     def add_wait(self):
-        if self.is_running or self.is_recording:
+        if self.is_busy():
             return
         popup = tk.Toplevel(self.root)
         popup.title("Add Wait")
@@ -888,7 +925,7 @@ class AutoClicker:
         popup.bind("<Return>", lambda e: apply())
 
     def add_scroll_action(self, preset=None):
-        if self.is_running or self.is_recording:
+        if self.is_busy():
             return
         if preset is None:
             preset = {}
@@ -993,7 +1030,7 @@ class AutoClicker:
         popup.geometry(f"+{x}+{y}")
 
     def add_key_action(self):
-        if self.is_running or self.is_recording:
+        if self.is_busy():
             return
         popup = tk.Toplevel(self.root)
         popup.title("Add Keyboard Action")
@@ -1084,7 +1121,7 @@ class AutoClicker:
         self.root.after(150, lambda: self.root.attributes("-topmost", self.always_on_top.get()))
 
     def start_add_point(self, mode):
-        if self.is_running or self.is_recording:
+        if self.is_busy():
             return
         if self.click_listener and self.click_listener.is_alive():
             try:
@@ -1284,7 +1321,7 @@ class AutoClicker:
         self.status_label.config(text=f"Recording stopped — {added} actions added", fg="#a6e3a1")
 
     def move_up(self):
-        if self.selected_index is None or self.selected_index == 0 or self.is_running or self.is_recording:
+        if self.selected_index is None or self.selected_index == 0 or self.is_busy():
             return
         i = self.selected_index
         self.points[i], self.points[i - 1] = self.points[i - 1], self.points[i]
@@ -1292,7 +1329,7 @@ class AutoClicker:
         self.select_index(i - 1)
 
     def move_down(self):
-        if self.selected_index is None or self.selected_index >= len(self.points) - 1 or self.is_running or self.is_recording:
+        if self.selected_index is None or self.selected_index >= len(self.points) - 1 or self.is_busy():
             return
         i = self.selected_index
         self.points[i], self.points[i + 1] = self.points[i + 1], self.points[i]
@@ -1300,20 +1337,20 @@ class AutoClicker:
         self.select_index(i + 1)
 
     def remove_point(self):
-        if self.is_running or self.is_recording or self.selected_index is None:
+        if self.is_busy() or self.selected_index is None:
             return
         idx = self.selected_index
         del self.points[idx]
         self.refresh_points_list()
         if self.points:
-            self.select_index(idx)
+            self.select_index(min(idx, len(self.points) - 1))
         else:
             self.selected_index = None
             self.edit_btn.config(state="disabled")
         self.status_label.config(text="Point removed", fg="#f9e2af")
 
     def clear_points(self):
-        if self.is_running or self.is_recording:
+        if self.is_busy():
             return
         self.points.clear()
         self.selected_index = None
@@ -1330,7 +1367,10 @@ class AutoClicker:
     def change_hotkey(self, which):
         self.force_english_keyboard()
         self.waiting_for_hotkey = which
-        labels = {"start": "START", "stop": "STOP", "record_start": "START RECORD", "record_stop": "STOP RECORD"}
+        labels = {
+            "start": "START", "pause": "PAUSE/RESUME", "stop": "STOP",
+            "record_start": "START RECORD", "record_stop": "STOP RECORD"
+        }
         self.status_label.config(text=f"Press a key for {labels.get(which, which.upper())}...", fg="#f9e2af")
 
     def start_keyboard_listener(self):
@@ -1345,7 +1385,8 @@ class AutoClicker:
                     if not kstr or kstr in ("ctrl", "alt", "shift", "cmd"):
                         return
                     all_hk = {
-                        "start": self.start_hotkey, "stop": self.stop_hotkey,
+                        "start": self.start_hotkey, "pause": self.pause_hotkey,
+                        "stop": self.stop_hotkey,
                         "record_start": self.record_start_hotkey, "record_stop": self.record_stop_hotkey
                     }
                     for name, val in all_hk.items():
@@ -1356,6 +1397,9 @@ class AutoClicker:
                     if self.waiting_for_hotkey == "start":
                         self.start_hotkey = kstr
                         self.start_hk_label.config(text=f"▶ Start: {kstr.upper()}")
+                    elif self.waiting_for_hotkey == "pause":
+                        self.pause_hotkey = kstr
+                        self.pause_hk_label.config(text=f"⏸ Pause: {kstr.upper()}")
                     elif self.waiting_for_hotkey == "stop":
                         self.stop_hotkey = kstr
                         self.stop_hk_label.config(text=f"⏹ Stop: {kstr.upper()}")
@@ -1371,15 +1415,24 @@ class AutoClicker:
 
                 if self.is_focus_on_input():
                     return
-                if kstr == self.record_start_hotkey and not self.is_recording and not self.is_running:
+                if (self.rs_hotkey_enabled.get() and kstr == self.record_start_hotkey
+                        and not self.is_recording and not self.is_running):
                     self.root.after(0, self.start_recording)
                     return
-                if self.is_recording and kstr == self.record_stop_hotkey:
+                if (self.re_hotkey_enabled.get() and self.is_recording
+                        and kstr == self.record_stop_hotkey):
                     self.root.after(0, lambda: self.stop_recording(from_ui=False))
                     return
-                if self.g_hotkey_enabled.get() and kstr == self.start_hotkey and not self.is_running and not self.is_recording:
+                if (self.g_hotkey_enabled.get() and kstr == self.start_hotkey
+                        and not self.is_running and not self.is_recording):
                     self.root.after(0, self.start_clicking)
-                if self.s_hotkey_enabled.get() and kstr == self.stop_hotkey and self.is_running:
+                    return
+                if (self.p_hotkey_enabled.get() and kstr == self.pause_hotkey
+                        and self.is_running):
+                    self.root.after(0, self.toggle_pause)
+                    return
+                if (self.s_hotkey_enabled.get() and kstr == self.stop_hotkey
+                        and self.is_running):
                     self.root.after(0, self.stop_clicking)
             except Exception:
                 pass
@@ -1400,8 +1453,12 @@ class AutoClicker:
         if self.is_running or self.is_recording:
             return
         self.is_running = True
+        self.is_paused = False
         self.stop_flag = False
+        self.current_cycle = 0
+        self.current_step_index = 0
         self.start_btn.config(state="disabled")
+        self.pause_btn.config(state="normal", text="Pause")
         self.stop_btn.config(state="normal")
         self.edit_btn.config(state="disabled")
         self.record_btn.config(state="disabled")
@@ -1412,18 +1469,40 @@ class AutoClicker:
         cycles = self.get_safe_int(self.rep_var, 1, 1, 99999)
         threading.Thread(target=self.click_loop, args=(random_ms, pos_rand, cycles), daemon=True).start()
 
+    def toggle_pause(self):
+        if not self.is_running:
+            return
+        self.is_paused = not self.is_paused
+        if self.is_paused:
+            self.pause_btn.config(text="Resume")
+            self.status_label.config(text="Paused — edit list freely, then Resume", fg="#f9e2af")
+            if self.selected_index is not None and self.selected_index < len(self.points):
+                self.edit_btn.config(state="normal")
+        else:
+            self.pause_btn.config(text="Pause")
+            self.status_label.config(text="Running...", fg="#89b4fa")
+            self.edit_btn.config(state="disabled")
+
     def apply_pos_random(self, x, y, pos_rand):
         if pos_rand <= 0:
             return x, y
         return x + random.randint(-pos_rand, pos_rand), y + random.randint(-pos_rand, pos_rand)
 
+    def wait_if_paused(self):
+        """Block while paused; return True if should abort (stop_flag)."""
+        while self.is_paused and not self.stop_flag:
+            time.sleep(0.05)
+        return self.stop_flag
+
     def interruptible_sleep(self, duration_ms):
-        """Sleep in small chunks so stop_flag can cancel immediately."""
+        """Sleep in small chunks so stop/pause can react immediately."""
         if duration_ms <= 0:
             return
         end = time.time() + duration_ms / 1000.0
         while time.time() < end:
             if self.stop_flag:
+                return
+            if self.wait_if_paused():
                 return
             remaining = end - time.time()
             time.sleep(min(0.05, max(0, remaining)))
@@ -1448,7 +1527,7 @@ class AutoClicker:
         self.mouse.press(Button.left)
         steps = max(8, int(duration * 50))
         for i in range(1, steps + 1):
-            if self.stop_flag:
+            if self.stop_flag or self.wait_if_paused():
                 break
             t = i / steps
             self.mouse.position = (int(sx + (ex - sx) * t), int(sy + (ey - sy) * t))
@@ -1483,13 +1562,25 @@ class AutoClicker:
 
     def click_loop(self, random_ms, pos_rand, max_cycles):
         cycle = 0
-        total_points = len(self.points)
         if self.infinite.get():
             max_cycles = float("inf")
         while not self.stop_flag and cycle < max_cycles:
-            for idx, p in enumerate(self.points):
+            self.current_cycle = cycle
+            idx = 0
+            while idx < len(self.points):
                 if self.stop_flag:
                     break
+                if self.wait_if_paused():
+                    break
+
+                # Re-validate index after possible list edits during pause
+                if idx >= len(self.points):
+                    break
+
+                p = self.points[idx]
+                self.current_step_index = idx
+                total_points = len(self.points)
+
                 self.root.after(0, self.highlight_current, idx)
                 if self.infinite.get():
                     prog = f"Cycle {cycle + 1} (∞)  |  Step {idx + 1}/{total_points}"
@@ -1504,6 +1595,7 @@ class AutoClicker:
                     if random_ms > 0:
                         delay += random.randint(-random_ms, random_ms)
                     self.interruptible_sleep(max(0, delay))
+                    idx += 1
                     continue
 
                 count = p.get("count", 1)
@@ -1517,29 +1609,43 @@ class AutoClicker:
                 for i in range(count):
                     if self.stop_flag:
                         break
+                    if self.wait_if_paused():
+                        break
+                    # Re-fetch in case the step was edited during pause
+                    if idx >= len(self.points):
+                        break
+                    p = self.points[idx]
+                    action = p.get("action")
                     if action == "key":
                         self.perform_key(p)
+                    elif action == "wait":
+                        break  # type changed to wait mid-run; skip to next
                     else:
+                        runner = runners.get(action, self.perform_click)
                         runner(p, pos_rand)
                     if i < count - 1 and delay_between > 0:
                         d = delay_between + (random.randint(-random_ms, random_ms) if random_ms > 0 else 0)
                         self.interruptible_sleep(max(0, d))
+                idx += 1
             cycle += 1
         self.is_running = False
+        self.is_paused = False
         self.root.after(0, self.on_clicking_finished)
 
     def on_clicking_finished(self):
         self.start_btn.config(state="normal")
+        self.pause_btn.config(state="disabled", text="Pause")
         self.stop_btn.config(state="disabled")
         self.record_btn.config(state="normal")
         self.clear_highlight()
-        if self.selected_index is not None:
+        if self.selected_index is not None and self.selected_index < len(self.points):
             self.edit_btn.config(state="normal")
         self.status_label.config(text="Stopped", fg="#f38ba8")
         self.progress_label.config(text="")
 
     def stop_clicking(self):
         self.stop_flag = True
+        self.is_paused = False  # unblock any wait_if_paused loops
         self.status_label.config(text="Stopping...", fg="#f9e2af")
 
     def save_profile(self):
@@ -1550,11 +1656,15 @@ class AutoClicker:
             "cycles": self.rep_var.get(),
             "infinite": self.infinite.get(),
             "start_hotkey": self.start_hotkey,
+            "pause_hotkey": self.pause_hotkey,
             "stop_hotkey": self.stop_hotkey,
             "record_start_hotkey": self.record_start_hotkey,
             "record_stop_hotkey": self.record_stop_hotkey,
             "start_enabled": self.g_hotkey_enabled.get(),
+            "pause_enabled": self.p_hotkey_enabled.get(),
             "stop_enabled": self.s_hotkey_enabled.get(),
+            "record_start_enabled": self.rs_hotkey_enabled.get(),
+            "record_stop_enabled": self.re_hotkey_enabled.get(),
             "always_on_top": self.always_on_top.get(),
             "defaults": self.get_current_defaults()
         }
@@ -1571,6 +1681,7 @@ class AutoClicker:
         if self.is_running or self.is_recording:
             messagebox.showwarning("Warning", "Stop first.")
             return
+
         path = filedialog.askopenfilename(filetypes=[("JSON Profile", "*.json")])
         if not path:
             return
@@ -1587,15 +1698,20 @@ class AutoClicker:
             self.infinite.set(data.get("infinite", False))
             self.toggle_infinite()
             self.start_hotkey = data.get("start_hotkey", "f1")
-            self.stop_hotkey = data.get("stop_hotkey", "f2")
-            self.record_start_hotkey = data.get("record_start_hotkey", "f3")
-            self.record_stop_hotkey = data.get("record_stop_hotkey", "f4")
+            self.pause_hotkey = data.get("pause_hotkey", "f2")
+            self.stop_hotkey = data.get("stop_hotkey", "f3")
+            self.record_start_hotkey = data.get("record_start_hotkey", "f4")
+            self.record_stop_hotkey = data.get("record_stop_hotkey", "f5")
             self.start_hk_label.config(text=f"▶ Start: {self.start_hotkey.upper()}")
+            self.pause_hk_label.config(text=f"⏸ Pause: {self.pause_hotkey.upper()}")
             self.stop_hk_label.config(text=f"⏹ Stop: {self.stop_hotkey.upper()}")
             self.record_start_hk_label.config(text=f"⏺ Start Rec: {self.record_start_hotkey.upper()}")
             self.record_stop_hk_label.config(text=f"⏹ Stop Rec: {self.record_stop_hotkey.upper()}")
             self.g_hotkey_enabled.set(data.get("start_enabled", True))
+            self.p_hotkey_enabled.set(data.get("pause_enabled", True))
             self.s_hotkey_enabled.set(data.get("stop_enabled", True))
+            self.rs_hotkey_enabled.set(data.get("record_start_enabled", True))
+            self.re_hotkey_enabled.set(data.get("record_stop_enabled", True))
             self.always_on_top.set(data.get("always_on_top", False))
             self.toggle_topmost()
             defaults = data.get("defaults", {})
@@ -1614,6 +1730,7 @@ class AutoClicker:
 
     def exit_app(self):
         self.stop_flag = True
+        self.is_paused = False
         self.is_running = False
         self.is_recording = False
         self.clear_previews()

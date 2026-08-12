@@ -5,7 +5,7 @@ A powerful, modern **Auto Clicker** with full mouse & keyboard automation, recor
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Version](https://img.shields.io/badge/Version-v4.82-orange)
+![Version](https://img.shields.io/badge/Version-v4.9-orange)
 
 ---
 
@@ -13,7 +13,8 @@ A powerful, modern **Auto Clicker** with full mouse & keyboard automation, recor
 
 - **Click, Drag, Scroll, Keyboard & Wait** actions in one sequence
 - **Record** real mouse + keyboard actions and convert them into editable points
-- **Hotkeys** for Start / Stop / Start Recording / Stop Recording (fully customizable)
+- **Pause / Resume** — stop mid-sequence, edit the list freely, then continue
+- **Hotkeys** for Start / Pause / Stop / Start Recording / Stop Recording (fully customizable, each can be enabled/disabled)
 - **Random delay** (±ms) and **random position** (±px) for more human-like behavior
 - **Cycles** + Infinite mode
 - **Save / Load** profiles (JSON)
@@ -59,42 +60,44 @@ python main.py
 
 
 ### Editing & Organizing
-Double-click any item (or select + Edit) to modify it
-Drag items in the list to reorder
-Use ↑ / ↓ buttons or Delete key
+Double-click any item (or select + Edit) to modify it  
+Drag items in the list to reorder  
+Use ↑ / ↓ buttons or Delete key  
 Ctrl+C / Ctrl+X / Ctrl+V for copy / cut / paste
 
 ### Global Settings
-Random Time: Adds random delay (±ms) to waits and repeats
-Random Position: Slightly randomizes click/drag/scroll coordinates
-Cycles: How many times the whole sequence should run
-Infinite: Run forever until stopped
-Always on Top: Keep the window above other windows
+**Random Time:** Adds random delay (±ms) to waits and repeats  
+**Random Position:** Slightly randomizes click/drag/scroll coordinates  
+**Cycles:** How many times the whole sequence should run  
+**Infinite:** Run forever until stopped  
+**Always on Top:** Keep the window above other windows
 
 ### Hotkeys (default)
 | Action              | Default Key |
 |---------------------|-------------|
 | Start               | `F1`        |
-| Stop                | `F2`        |
-| Start Recording     | `F3`        |
-| Stop Recording      | `F4`        |
+| Pause / Resume      | `F2`        |
+| Stop                | `F3`        |
+| Start Recording     | `F4`        |
+| Stop Recording      | `F5`        |
 You can change all hotkeys from the Hotkeys section.
 
 
 ## Profile System
 
-Save Profile → exports current sequence + all settings to a .json file
-Load Profile → restores everything (points, hotkeys, random settings, etc.)
+**Save Profile** → exports current sequence + all settings to a `.json` file  
+**Load Profile** → restores everything (points, hotkeys, random settings, etc.)
 
 Perfect for sharing macros or switching between different tasks.
 
 
 ## Tips
 
-Use Record for complex sequences, then clean them up with Edit.
-For more natural behavior, enable a small Random Time and Random Position.
-You can name each point (optional) for better organization.
-The app forces English keyboard layout on Windows when focused (helps with key recording).
+- Use **Record** for complex sequences, then clean them up with Edit.
+- For more natural behavior, enable a small Random Time and Random Position.
+- You can name each point (optional) for better organization.
+- The app forces English keyboard layout on Windows when focused (helps with key recording).
+- Use **Pause** when you need to adjust the sequence mid-run without losing progress.
 
 
 ## Supported Actions
@@ -109,12 +112,12 @@ The app forces English keyboard layout on Windows when focused (helps with key r
 
 
 ## License
-This project is licensed under the MIT License.
+This project is licensed under the MIT License.  
 Feel free to use, modify and distribute.
 
 
 ## Contributing
-Pull requests are welcome!
+Pull requests are welcome!  
 If you find a bug or have a feature idea, open an issue.
 
 

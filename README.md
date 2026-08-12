@@ -80,6 +80,7 @@ Ctrl+C / Ctrl+X / Ctrl+V for copy / cut / paste
 | Stop                | `F3`        |
 | Start Recording     | `F4`        |
 | Stop Recording      | `F5`        |
+
 You can change all hotkeys from the Hotkeys section.
 
 

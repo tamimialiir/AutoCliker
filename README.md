@@ -26,7 +26,7 @@ A powerful, modern **Auto Clicker** with full mouse & keyboard automation, recor
 
 
 ## Screenshots
-![Main Window](screenshots/main_4.8.png)
+![Main Window](screenshots/main_4.9.png)
 
 
 ## Requirements

@@ -66,7 +66,7 @@ jobs:
           SetupIconFile=icon.ico
           Compression=lzma
           SolidCompression=yes
-          PrivilegesRequired=lowest
+          PrivilegesRequired=admin
           ArchitecturesInstallIn64BitMode=x64
 
           [Files]

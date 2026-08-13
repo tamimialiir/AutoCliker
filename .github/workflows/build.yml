@@ -11,10 +11,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -41,7 +41,7 @@ jobs:
           pyinstaller --noconsole --onefile --name "AutoClicker_${{ steps.ver.outputs.version }}_Windows" --icon=icon.ico --add-data "icon.png;." main.py
 
       - name: Upload Windows Portable
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: AutoClicker-Windows-Portable
           path: dist/AutoClicker_${{ steps.ver.outputs.version }}_Windows.exe
@@ -62,7 +62,7 @@ jobs:
           DefaultDirName={autopf}\AutoClicker
           DefaultGroupName=Auto Clicker
           OutputDir=installer_output
-          OutputBaseFilename=AutoClicker_${ver}_Setup
+          OutputBaseFilename=AutoClicker_${ver}_Windows_Setup
           SetupIconFile=icon.ico
           Compression=lzma
           SolidCompression=yes
@@ -80,7 +80,7 @@ jobs:
           Name: "desktopicon"; Description: "Create a desktop icon"; GroupDescription: "Additional icons:"; Flags: unchecked
 
           [Run]
-          Filename: "{app}\AutoClicker_${ver}_Windows.exe"; Description: "Launch Auto Clicker"; Flags: nowait postinstall skipifsilent
+          Filename: "{app}\AutoClicker_${ver}_Windows_Portable.exe"; Description: "Launch Auto Clicker"; Flags: nowait postinstall skipifsilent
           "@ | Out-File -FilePath setup.iss -Encoding utf8
 
       - name: Build Installer
@@ -88,7 +88,7 @@ jobs:
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup.iss
 
       - name: Upload Windows Installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: AutoClicker-Windows-Installer
           path: installer_output/AutoClicker_${{ steps.ver.outputs.version }}_Setup.exe
@@ -100,10 +100,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -133,7 +133,7 @@ jobs:
             main.py
 
       - name: Upload macOS App
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: AutoClicker-macOS
           path: dist/AutoClicker_${{ steps.ver.outputs.version }}_Mac.app

@@ -128,7 +128,7 @@ class AutoClicker:
         self.root.title("Auto Clicker")
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
-        self.version = "v4.9"
+        self.version = "v5.0"
         
         try:
             icon_path = resource_path("icon.png")
@@ -256,36 +256,6 @@ class AutoClicker:
         tk.Label(self.root, text="Auto Clicker", font=("Segoe UI", 15, "bold"),
                  bg="#1e1e2e", fg="#89b4fa").pack(pady=(6, 3))
 
-        settings_frame = ttk.LabelFrame(self.root, text=" Defaults for New Points ", padding=5)
-        settings_frame.pack(fill="x", padx=10, pady=2)
-
-        row1 = tk.Frame(settings_frame, bg="#1e1e2e")
-        row1.pack(fill="x", pady=1)
-        tk.Label(row1, text="Hold (ms):", bg="#1e1e2e", fg="#cdd6f4", width=14, anchor="w").pack(side="left")
-        self.pt_hold_var = tk.IntVar(value=50)
-        self.pt_hold_spin = ttk.Spinbox(row1, from_=10, to=2000, textvariable=self.pt_hold_var, width=7,
-                                        validate="key", validatecommand=vcmd)
-        self.pt_hold_spin.pack(side="left")
-        tk.Label(row1, text=" Repeat:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left", padx=(8, 0))
-        self.pt_count_var = tk.IntVar(value=1)
-        ttk.Spinbox(row1, from_=1, to=100, textvariable=self.pt_count_var, width=5,
-                    validate="key", validatecommand=vcmd).pack(side="left")
-        tk.Label(row1, text=" Type:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left", padx=(8, 0))
-        self.pt_type_var = tk.StringVar(value="Left")
-        self.pt_type_combo = ttk.Combobox(row1, textvariable=self.pt_type_var,
-                                          values=["Left", "Right", "Double", "Middle"],
-                                          state="readonly", width=8)
-        self.pt_type_combo.pack(side="left")
-        self.pt_type_combo.set("Left")
-        self.pt_type_combo.bind("<<ComboboxSelected>>", self.on_default_type_change)
-
-        row2 = tk.Frame(settings_frame, bg="#1e1e2e")
-        row2.pack(fill="x", pady=1)
-        tk.Label(row2, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4", width=22, anchor="w").pack(side="left")
-        self.pt_delay_var = tk.IntVar(value=100)
-        ttk.Spinbox(row2, from_=0, to=10000, textvariable=self.pt_delay_var, width=7,
-                    validate="key", validatecommand=vcmd).pack(side="left")
-
         points_frame = ttk.LabelFrame(self.root, text=" Points Sequence", padding=5)
         points_frame.pack(fill="x", padx=10, pady=2)
 
@@ -309,9 +279,9 @@ class AutoClicker:
         btn_row.pack(fill="x", pady=(4, 0))
         ttk.Button(btn_row, text="Add Click", command=lambda: self.start_add_point("click")).pack(side="left", expand=True, fill="x", padx=(0, 2))
         ttk.Button(btn_row, text="Add Drag", command=lambda: self.start_add_point("drag")).pack(side="left", expand=True, fill="x", padx=2)
-        ttk.Button(btn_row, text="Add Wait", command=self.add_wait).pack(side="left", expand=True, fill="x", padx=2)
+        ttk.Button(btn_row, text="Add Scroll", command=self.start_add_scroll).pack(side="left", expand=True, fill="x", padx=2)
         ttk.Button(btn_row, text="Add Key", command=self.add_key_action).pack(side="left", expand=True, fill="x", padx=2)
-        ttk.Button(btn_row, text="Add Scroll", command=self.add_scroll_action).pack(side="left", expand=True, fill="x", padx=(2, 0))
+        ttk.Button(btn_row, text="Add Wait", command=self.add_wait).pack(side="left", expand=True, fill="x", padx=(2, 0))
 
         btn_row2 = tk.Frame(points_frame, bg="#1e1e2e")
         btn_row2.pack(fill="x", pady=(3, 0))
@@ -335,6 +305,31 @@ class AutoClicker:
         global_frame = ttk.LabelFrame(self.root, text=" Global Settings ", padding=8)
         global_frame.pack(fill="x", padx=10, pady=2)
 
+        # Speed control row (top of Global Settings)
+        speed_row = tk.Frame(global_frame, bg="#1e1e2e")
+        speed_row.pack(fill="x", pady=(0, 6))
+        speed_box = tk.Frame(speed_row, bg="#313244", padx=8, pady=6)
+        speed_box.pack(fill="x", expand=True)
+        sp = tk.Frame(speed_box, bg="#313244")
+        sp.pack(fill="x")
+        tk.Label(sp, text="⚡  Speed", bg="#313244", fg="#a6adc8", font=("Segoe UI", 8)).pack(side="left")
+        self.speed_var = tk.DoubleVar(value=1.0)
+        self.speed_scale = tk.Scale(
+            sp, from_=0.1, to=20.0, resolution=0.1, orient="horizontal",
+            variable=self.speed_var, length=220, showvalue=0,
+            bg="#313244", fg="#cdd6f4", troughcolor="#45475a",
+            highlightthickness=0, activebackground="#89b4fa",
+            command=self._on_speed_change
+        )
+        self.speed_scale.pack(side="left", padx=(10, 6), fill="x", expand=True)
+        self.speed_value_label = tk.Label(sp, text="x1.0", bg="#313244", fg="#89b4fa",
+                                          font=("Segoe UI", 9, "bold"), width=6, anchor="w")
+        self.speed_value_label.pack(side="left")
+        self.speed_reset_btn = ttk.Button(sp, text="Reset", width=6,
+                                          style="Hotkey.TButton",
+                                          command=self.reset_speed)
+        self.speed_reset_btn.pack(side="left", padx=(4, 0))
+
         g_row1 = tk.Frame(global_frame, bg="#1e1e2e")
         g_row1.pack(fill="x", pady=(0, 4))
 
@@ -342,7 +337,7 @@ class AutoClicker:
         rand_box.pack(side="left", fill="x", expand=True, padx=(0, 4))
         rt = tk.Frame(rand_box, bg="#313244")
         rt.pack(fill="x")
-        tk.Label(rt, text="⏱  Random Time", bg="#313244", fg="#a6adc8", font=("Segoe UI", 8)).pack(side="left")
+        tk.Label(rt, text="⏱  Time Jitter", bg="#313244", fg="#a6adc8", font=("Segoe UI", 8)).pack(side="left")
         self.random_var = tk.IntVar(value=0)
         ttk.Spinbox(rt, from_=0, to=500, textvariable=self.random_var, width=5,
                     validate="key", validatecommand=vcmd).pack(side="left", padx=(8, 0))
@@ -352,7 +347,7 @@ class AutoClicker:
         pos_box.pack(side="left", fill="x", expand=True, padx=(4, 0))
         rp = tk.Frame(pos_box, bg="#313244")
         rp.pack(fill="x")
-        tk.Label(rp, text="🎯  Random Position", bg="#313244", fg="#a6adc8", font=("Segoe UI", 8)).pack(side="left")
+        tk.Label(rp, text="🎯  Pos. Jitter", bg="#313244", fg="#a6adc8", font=("Segoe UI", 8)).pack(side="left")
         self.pos_random_var = tk.IntVar(value=0)
         ttk.Spinbox(rp, from_=0, to=50, textvariable=self.pos_random_var, width=5,
                     validate="key", validatecommand=vcmd).pack(side="left", padx=(8, 0))
@@ -377,7 +372,7 @@ class AutoClicker:
         opt_box.pack(side="left", fill="both", expand=True, padx=(4, 0))
         op = tk.Frame(opt_box, bg="#313244")
         op.pack(fill="x")
-        tk.Label(op, text="⚙  Options", bg="#313244", fg="#a6adc8", font=("Segoe UI", 8)).pack(side="left")
+        tk.Label(op, text="⚙  Options ", bg="#313244", fg="#a6adc8", font=("Segoe UI", 8)).pack(side="left")
         ttk.Checkbutton(op, text="Always on Top", variable=self.always_on_top,
                         command=self.toggle_topmost).pack(side="left", padx=(10, 0))
 
@@ -509,8 +504,24 @@ class AutoClicker:
         self.status_label.config(text="Item pasted", fg="#a6e3a1")
         return "break"
 
-    def on_default_type_change(self, event=None):
-        self.pt_hold_spin.config(state="disabled" if self.pt_type_var.get() == "Double" else "normal")
+    def _on_speed_change(self, value=None):
+        try:
+            v = float(self.speed_var.get())
+            self.speed_value_label.config(text=f"x{v:.1f}")
+        except Exception:
+            pass
+
+    def reset_speed(self):
+        self.speed_var.set(1.0)
+        self._on_speed_change()
+
+    def set_speed_controls_state(self, enabled):
+        state = "normal" if enabled else "disabled"
+        try:
+            self.speed_scale.config(state=state)
+            self.speed_reset_btn.config(state=state)
+        except Exception:
+            pass
 
     def set_record_indicator(self, active):
         self.record_indicator.itemconfig("dot", fill="#ef4444" if active else "#5c1a1a")
@@ -552,14 +563,6 @@ class AutoClicker:
         self.drag_start_index = None
         self.drag_current_index = None
 
-    def get_current_defaults(self):
-        return {
-            "hold": self.get_safe_int(self.pt_hold_var, 50, 10, 2000),
-            "count": self.get_safe_int(self.pt_count_var, 1, 1, 100),
-            "delay_after": self.get_safe_int(self.pt_delay_var, 100, 0, 10000),
-            "type": self.pt_type_var.get()
-        }
-
     def on_point_select(self, event=None):
         if self.is_busy():
             return
@@ -590,7 +593,7 @@ class AutoClicker:
             name = p.get("name", "").strip()
             prefix = f"{i}. "
             if name:
-                prefix += f"[{name}] "
+                prefix += f"{name}: "
             action = p.get("action")
             if action == "drag":
                 text = f"{prefix}DRAG ({p['x']},{p['y']}) → ({p['drag_x']},{p['drag_y']}) x{p.get('count', 1)}"
@@ -608,6 +611,13 @@ class AutoClicker:
     def clear_previews(self):
         for w in self.preview_windows:
             try:
+                lst = getattr(w, "_drag_listener", None)
+                if lst is not None:
+                    try:
+                        if lst.is_alive():
+                            lst.stop()
+                    except Exception:
+                        pass
                 w.destroy()
             except Exception:
                 pass
@@ -618,7 +628,7 @@ class AutoClicker:
             preview = tk.Toplevel(self.root)
             preview.overrideredirect(True)
             preview.attributes("-topmost", True)
-            
+
             transparent = "#010101"
             try:
                 preview.attributes("-transparentcolor", transparent)
@@ -627,7 +637,7 @@ class AutoClicker:
 
             size = 36
             preview.geometry(f"{size}x{size}+{int(x) - size // 2}+{int(y) - size // 2}")
-            
+
             canvas = tk.Canvas(preview, width=size, height=size, bg=transparent,
                                highlightthickness=0, bd=0)
             canvas.pack()
@@ -671,6 +681,211 @@ class AutoClicker:
         except Exception:
             pass
 
+    def make_preview_draggable(self, preview_win, x_var, y_var):
+        """
+        Drag via global mouse listener with a generous hit radius around the
+        marker center. Appearance stays hollow/transparent; the whole disk
+        area is still easy to grab.
+        """
+        if preview_win is None:
+            return
+        size = 36
+        hit_radius = 20  # px from center — covers full outer circle + a bit more
+        state = {"dragging": False}
+
+        def marker_center():
+            try:
+                return int(x_var.get()), int(y_var.get())
+            except Exception:
+                return None
+
+        def on_click(x, y, button, pressed):
+            if button != Button.left:
+                return True
+            if pressed:
+                c = marker_center()
+                if c is None:
+                    return True
+                if (x - c[0]) ** 2 + (y - c[1]) ** 2 <= hit_radius ** 2:
+                    state["dragging"] = True
+                    try:
+                        preview_win.lift()
+                    except Exception:
+                        pass
+            else:
+                if state["dragging"]:
+                    state["dragging"] = False
+                    try:
+                        x_var.set(int(x))
+                        y_var.set(int(y))
+                    except Exception:
+                        pass
+            return True
+
+        def on_move(x, y):
+            if not state["dragging"]:
+                return
+            try:
+                preview_win.geometry(f"{size}x{size}+{x - size // 2}+{y - size // 2}")
+                x_var.set(int(x))
+                y_var.set(int(y))
+            except Exception:
+                pass
+
+        listener = mouse.Listener(on_click=on_click, on_move=on_move)
+        listener.start()
+        preview_win._drag_listener = listener
+
+        def _stop_listener(event=None):
+            lst = getattr(preview_win, "_drag_listener", None)
+            if lst is not None:
+                try:
+                    if lst.is_alive():
+                        lst.stop()
+                except Exception:
+                    pass
+                preview_win._drag_listener = None
+
+        preview_win.bind("<Destroy>", _stop_listener)
+
+    def open_add_popup(self, action, data):
+        """Popup for configuring a newly captured Click or Drag before adding it to the list."""
+        self.clear_previews()
+        preview_main = preview_end = None
+        if action == "click":
+            preview_main = self.show_point_preview(data.get("x", 0), data.get("y", 0), "#89b4fa", "C")
+        elif action == "drag":
+            preview_main = self.show_point_preview(data.get("x", 0), data.get("y", 0), "#a6e3a1", "S")
+            preview_end = self.show_point_preview(data.get("drag_x", 0), data.get("drag_y", 0), "#f38ba8", "E")
+
+        popup = tk.Toplevel(self.root)
+        popup.title("Add " + ("Click" if action == "click" else "Drag"))
+        popup.configure(bg="#1e1e2e")
+        popup.resizable(False, False)
+        popup.transient(self.root)
+        # No grab_set: allows dragging the on-screen preview markers
+
+        def on_popup_close():
+            self.clear_previews()
+            popup.destroy()
+            self.status_label.config(text="Add cancelled", fg="#f9e2af")
+
+        popup.protocol("WM_DELETE_WINDOW", on_popup_close)
+        vcmd = (popup.register(self.validate_number), "%d", "%P")
+
+        tk.Label(popup, text="Configure new " + ("Click" if action == "click" else "Drag"),
+                 font=("Segoe UI", 11, "bold"), bg="#1e1e2e", fg="#89b4fa").pack(pady=(10, 6))
+        tk.Label(popup, text="Drag the on-screen marker(s) to reposition",
+                 bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
+
+        name_frame = tk.Frame(popup, bg="#1e1e2e")
+        name_frame.pack(fill="x", padx=15, pady=(0, 6))
+        tk.Label(name_frame, text="Name (optional):", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        name_var = tk.StringVar(value=data.get("name", ""))
+        ttk.Entry(name_frame, textvariable=name_var, width=22).pack(side="left", padx=(6, 0))
+
+        frame = tk.Frame(popup, bg="#1e1e2e")
+        frame.pack(padx=15, pady=5)
+        entries = {}
+
+        def bind_live_preview(var_x, var_y, preview_win):
+            if preview_win is None:
+                return
+            def on_change(*_):
+                self._move_preview(preview_win, var_x, var_y)
+            var_x.trace_add("write", on_change)
+            var_y.trace_add("write", on_change)
+            self.make_preview_draggable(preview_win, var_x, var_y)
+
+        if action == "drag":
+            labels = [("Start X:", "x"), ("Start Y:", "y"), ("End X:", "drag_x"), ("End Y:", "drag_y"),
+                      ("Duration (ms):", "hold"), ("Repeat:", "count"), ("Delay Between Repeats (ms):", "delay_after")]
+            for i, (label, key) in enumerate(labels):
+                tk.Label(frame, text=label, bg="#1e1e2e", fg="#cdd6f4").grid(row=i, column=0, sticky="w", pady=2)
+                var = tk.IntVar(value=data.get(key, 1 if key == "count" else 0))
+                max_val = 100 if key == "count" else (99999 if key in ("hold", "delay_after") else 10000)
+                from_val = 1 if key == "count" else 0
+                ttk.Spinbox(frame, from_=from_val, to=max_val, textvariable=var, width=10,
+                            validate="key", validatecommand=vcmd).grid(row=i, column=1, pady=2, padx=5)
+                entries[key] = var
+            bind_live_preview(entries["x"], entries["y"], preview_main)
+            bind_live_preview(entries["drag_x"], entries["drag_y"], preview_end)
+        else:
+            # click
+            tk.Label(frame, text="X:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
+            var_x = tk.IntVar(value=data.get("x", 0))
+            ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_x, width=10,
+                        validate="key", validatecommand=vcmd).grid(row=0, column=1, pady=2, padx=5)
+            entries["x"] = var_x
+            tk.Label(frame, text="Y:", bg="#1e1e2e", fg="#cdd6f4").grid(row=1, column=0, sticky="w", pady=2)
+            var_y = tk.IntVar(value=data.get("y", 0))
+            ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_y, width=10,
+                        validate="key", validatecommand=vcmd).grid(row=1, column=1, pady=2, padx=5)
+            entries["y"] = var_y
+            bind_live_preview(var_x, var_y, preview_main)
+            tk.Label(frame, text="Hold (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
+            var_hold = tk.IntVar(value=data.get("hold", 50))
+            hold_spin = ttk.Spinbox(frame, from_=10, to=2000, textvariable=var_hold, width=10,
+                                    validate="key", validatecommand=vcmd)
+            hold_spin.grid(row=2, column=1, pady=2, padx=5)
+            entries["hold"] = var_hold
+            tk.Label(frame, text="Repeat:", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=2)
+            var_count = tk.IntVar(value=data.get("count", 1))
+            ttk.Spinbox(frame, from_=1, to=100, textvariable=var_count, width=10,
+                        validate="key", validatecommand=vcmd).grid(row=3, column=1, pady=2, padx=5)
+            entries["count"] = var_count
+            tk.Label(frame, text="Type:", bg="#1e1e2e", fg="#cdd6f4").grid(row=4, column=0, sticky="w", pady=2)
+            var_type = tk.StringVar(value=data.get("type", "Left"))
+            type_combo = ttk.Combobox(frame, textvariable=var_type,
+                                      values=["Left", "Right", "Double", "Middle"],
+                                      state="readonly", width=8)
+            type_combo.grid(row=4, column=1, pady=2, padx=5)
+            type_combo.set(data.get("type", "Left"))
+            entries["type"] = var_type
+
+            def on_type_change(event=None):
+                hold_spin.config(state="disabled" if var_type.get() == "Double" else "normal")
+            type_combo.bind("<<ComboboxSelected>>", on_type_change)
+            on_type_change()
+            tk.Label(frame, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=2)
+            var_delay = tk.IntVar(value=data.get("delay_after", 100))
+            ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_delay, width=10,
+                        validate="key", validatecommand=vcmd).grid(row=5, column=1, pady=2, padx=5)
+            entries["delay_after"] = var_delay
+
+        def apply_add():
+            try:
+                new_p = {"action": action, "name": name_var.get().strip()}
+                if action == "drag":
+                    for key in ["x", "y", "drag_x", "drag_y", "hold", "count", "delay_after"]:
+                        new_p[key] = int(entries[key].get())
+                    new_p["type"] = "Left"
+                else:
+                    new_p["x"] = int(entries["x"].get())
+                    new_p["y"] = int(entries["y"].get())
+                    new_p["hold"] = int(entries["hold"].get())
+                    new_p["count"] = int(entries["count"].get())
+                    new_p["type"] = entries["type"].get()
+                    new_p["delay_after"] = int(entries["delay_after"].get())
+                self.points.append(new_p)
+                self.refresh_points_list()
+                self.select_index(len(self.points) - 1)
+                self.status_label.config(text=("Click" if action == "click" else "Drag") + " point added", fg="#a6e3a1")
+                self.clear_previews()
+                popup.destroy()
+            except Exception as e:
+                messagebox.showerror("Error", f"Invalid value:\n{e}", parent=popup)
+
+        btn_frame = tk.Frame(popup, bg="#1e1e2e")
+        btn_frame.pack(pady=12)
+        ttk.Button(btn_frame, text="Add", command=apply_add, width=10).pack(side="left", padx=6)
+        ttk.Button(btn_frame, text="Cancel", command=on_popup_close, width=10).pack(side="left", padx=6)
+
+        popup.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (popup.winfo_width() // 2)
+        y = self.root.winfo_y() + 80
+        popup.geometry(f"+{x}+{y}")
+
     def open_edit_popup(self):
         if self.is_busy() or self.selected_index is None or self.selected_index >= len(self.points):
             return
@@ -692,7 +907,9 @@ class AutoClicker:
         popup.configure(bg="#1e1e2e")
         popup.resizable(False, False)
         popup.transient(self.root)
-        popup.grab_set()
+        # No grab_set when previews exist: allows dragging the on-screen markers
+        if action in ("wait", "key"):
+            popup.grab_set()
 
         def on_popup_close():
             self.clear_previews()
@@ -703,6 +920,9 @@ class AutoClicker:
 
         tk.Label(popup, text=f"Editing item #{self.selected_index + 1}", font=("Segoe UI", 11, "bold"),
                  bg="#1e1e2e", fg="#89b4fa").pack(pady=(10, 6))
+        if action in ("click", "drag", "scroll"):
+            tk.Label(popup, text="Drag the on-screen marker(s) to reposition",
+                     bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
 
         name_frame = tk.Frame(popup, bg="#1e1e2e")
         name_frame.pack(fill="x", padx=15, pady=(0, 6))
@@ -723,6 +943,7 @@ class AutoClicker:
 
             var_x.trace_add("write", on_change)
             var_y.trace_add("write", on_change)
+            self.make_preview_draggable(preview_win, var_x, var_y)
 
         if action == "wait":
             tk.Label(frame, text="Wait Duration (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=3)
@@ -896,6 +1117,13 @@ class AutoClicker:
         vcmd = (popup.register(self.validate_number), "%d", "%P")
         tk.Label(popup, text="Wait Duration", font=("Segoe UI", 11, "bold"),
                  bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 8))
+
+        name_frame = tk.Frame(popup, bg="#1e1e2e")
+        name_frame.pack(fill="x", padx=20, pady=(0, 6))
+        tk.Label(name_frame, text="Name (optional):", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        name_var = tk.StringVar(value="")
+        ttk.Entry(name_frame, textvariable=name_var, width=18).pack(side="left", padx=(6, 0))
+
         row = tk.Frame(popup, bg="#1e1e2e")
         row.pack(padx=20, pady=4)
         tk.Label(row, text="Duration (ms):", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
@@ -908,7 +1136,7 @@ class AutoClicker:
                 delay = max(1, int(delay_var.get()))
             except Exception:
                 delay = 500
-            self.points.append({"action": "wait", "delay": delay, "name": ""})
+            self.points.append({"action": "wait", "delay": delay, "name": name_var.get().strip()})
             self.refresh_points_list()
             self.select_index(len(self.points) - 1)
             self.status_label.config(text=f"Wait {delay}ms added", fg="#a6e3a1")
@@ -924,24 +1152,67 @@ class AutoClicker:
         popup.geometry(f"+{x}+{y}")
         popup.bind("<Return>", lambda e: apply())
 
+    def start_add_scroll(self):
+        """Capture scroll position first, then open the settings popup (same flow as Click/Drag)."""
+        if self.is_busy():
+            return
+        if self.click_listener and self.click_listener.is_alive():
+            try:
+                self.click_listener.stop()
+            except Exception:
+                pass
+            self.click_listener = None
+        self.minimize_for_capture()
+        self.status_label.config(text="Click to set scroll position...", fg="#f9e2af")
+
+        def on_click(x, y, button, pressed):
+            if button != Button.left or not pressed:
+                return True
+
+            def finish():
+                if self.click_listener:
+                    try:
+                        if self.click_listener.is_alive():
+                            self.click_listener.stop()
+                    except Exception:
+                        pass
+                    self.click_listener = None
+                self.restore_after_capture()
+                self.status_label.config(text="Set scroll properties...", fg="#f9e2af")
+                self.root.after(120, lambda: self.add_scroll_action(preset={"x": x, "y": y}))
+
+            self.root.after(0, finish)
+            return False
+
+        self.click_listener = mouse.Listener(on_click=on_click)
+        self.click_listener.start()
+
     def add_scroll_action(self, preset=None):
         if self.is_busy():
             return
         if preset is None:
             preset = {}
+        self.clear_previews()
+        preview_main = self.show_point_preview(preset.get("x", 0), preset.get("y", 0), "#cba6f7", "Sc")
+
         popup = tk.Toplevel(self.root)
         popup.title("Add Scroll")
         popup.configure(bg="#1e1e2e")
         popup.resizable(False, False)
         popup.transient(self.root)
-        popup.grab_set()
+        # No grab_set so the on-screen marker stays draggable
         vcmd = (popup.register(self.validate_number), "%d", "%P")
-        defaults = self.get_current_defaults()
 
         tk.Label(popup, text="Add Mouse Scroll", font=("Segoe UI", 11, "bold"),
-                 bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 6))
-        tk.Label(popup, text="Capture Pos closes this dialog, then reopens with coordinates",
+                 bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 4))
+        tk.Label(popup, text="Drag the on-screen marker to reposition",
                  bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
+
+        name_frame = tk.Frame(popup, bg="#1e1e2e")
+        name_frame.pack(fill="x", padx=15, pady=(6, 0))
+        tk.Label(name_frame, text="Name (optional):", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        name_var = tk.StringVar(value="")
+        ttk.Entry(name_frame, textvariable=name_var, width=18).pack(side="left", padx=(6, 0))
 
         frame = tk.Frame(popup, bg="#1e1e2e")
         frame.pack(padx=15, pady=8)
@@ -953,6 +1224,13 @@ class AutoClicker:
         var_y = tk.IntVar(value=preset.get("y", 0))
         ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_y, width=10,
                     validate="key", validatecommand=vcmd).grid(row=1, column=1, pady=2, padx=5)
+
+        def on_xy_change(*_):
+            self._move_preview(preview_main, var_x, var_y)
+        var_x.trace_add("write", on_xy_change)
+        var_y.trace_add("write", on_xy_change)
+        self.make_preview_draggable(preview_main, var_x, var_y)
+
         tk.Label(frame, text="Direction:", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
         dir_var = tk.StringVar(value=preset.get("direction", "UP"))
         ttk.Combobox(frame, textvariable=dir_var, values=["UP", "DOWN"],
@@ -962,42 +1240,20 @@ class AutoClicker:
         ttk.Spinbox(frame, from_=1, to=20, textvariable=amount_var, width=10,
                     validate="key", validatecommand=vcmd).grid(row=3, column=1, pady=2, padx=5)
         tk.Label(frame, text="Repeat:", bg="#1e1e2e", fg="#cdd6f4").grid(row=4, column=0, sticky="w", pady=2)
-        count_var = tk.IntVar(value=preset.get("count", defaults["count"]))
+        count_var = tk.IntVar(value=preset.get("count", 1))
         ttk.Spinbox(frame, from_=1, to=100, textvariable=count_var, width=10,
                     validate="key", validatecommand=vcmd).grid(row=4, column=1, pady=2, padx=5)
         tk.Label(frame, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=5, column=0, sticky="w", pady=2)
-        delay_var = tk.IntVar(value=preset.get("delay_after", defaults["delay_after"]))
+        delay_var = tk.IntVar(value=preset.get("delay_after", 50))
         ttk.Spinbox(frame, from_=0, to=10000, textvariable=delay_var, width=10,
                     validate="key", validatecommand=vcmd).grid(row=5, column=1, pady=2, padx=5)
 
-        def capture_pos():
-            try:
-                saved = {
-                    "x": int(var_x.get()), "y": int(var_y.get()),
-                    "direction": dir_var.get(), "amount": int(amount_var.get()),
-                    "count": int(count_var.get()), "delay_after": int(delay_var.get()),
-                }
-            except Exception:
-                saved = {"direction": dir_var.get(), "amount": 3,
-                         "count": defaults["count"], "delay_after": defaults["delay_after"]}
+        def on_popup_close():
+            self.clear_previews()
             popup.destroy()
-            self.status_label.config(text="Click to set scroll position...", fg="#f9e2af")
-            self.root.iconify()
+            self.status_label.config(text="Add cancelled", fg="#f9e2af")
 
-            def on_click(x, y, button, pressed):
-                if button != Button.left or not pressed:
-                    return True
-
-                def finish():
-                    saved["x"], saved["y"] = x, y
-                    self.restore_after_capture()
-                    self.root.after(100, lambda: self.add_scroll_action(preset=saved))
-                    self.status_label.config(text="Position captured", fg="#a6e3a1")
-
-                self.root.after(0, finish)
-                return False
-
-            mouse.Listener(on_click=on_click).start()
+        popup.protocol("WM_DELETE_WINDOW", on_popup_close)
 
         def apply():
             try:
@@ -1012,18 +1268,19 @@ class AutoClicker:
             self.points.append({
                 "action": "scroll", "x": x, "y": y, "dx": 0,
                 "dy": amount if direction == "UP" else -amount,
-                "count": count, "delay_after": delay_after, "name": ""
+                "count": count, "delay_after": delay_after,
+                "name": name_var.get().strip()
             })
             self.refresh_points_list()
             self.select_index(len(self.points) - 1)
             self.status_label.config(text=f"Scroll {direction} added", fg="#a6e3a1")
+            self.clear_previews()
             popup.destroy()
 
         btn_row = tk.Frame(popup, bg="#1e1e2e")
         btn_row.pack(pady=10)
-        ttk.Button(btn_row, text="Capture Pos", command=capture_pos, width=11).pack(side="left", padx=3)
         ttk.Button(btn_row, text="Add", command=apply, width=8).pack(side="left", padx=3)
-        ttk.Button(btn_row, text="Cancel", command=popup.destroy, width=8).pack(side="left", padx=3)
+        ttk.Button(btn_row, text="Cancel", command=on_popup_close, width=8).pack(side="left", padx=3)
         popup.update_idletasks()
         x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (popup.winfo_width() // 2)
         y = self.root.winfo_y() + 80
@@ -1043,6 +1300,12 @@ class AutoClicker:
                  bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 4))
         tk.Label(popup, text="Type manually or Capture (Ctrl/Alt/Shift/Cmd + key)",
                  bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
+
+        name_frame = tk.Frame(popup, bg="#1e1e2e")
+        name_frame.pack(fill="x", padx=20, pady=(8, 0))
+        tk.Label(name_frame, text="Name (optional):", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        name_var = tk.StringVar(value="")
+        ttk.Entry(name_frame, textvariable=name_var, width=18).pack(side="left", padx=(6, 0))
 
         key_var = tk.StringVar(value="")
         entry = ttk.Entry(popup, textvariable=key_var, width=22, font=("Segoe UI", 11))
@@ -1088,12 +1351,11 @@ class AutoClicker:
             if not k:
                 messagebox.showwarning("Warning", "Enter or capture a key / combo.", parent=popup)
                 return
-            defaults = self.get_current_defaults()
             self.points.append({
                 "action": "key", "key": k,
-                "count": defaults["count"],
-                "delay_after": defaults["delay_after"],
-                "name": ""
+                "count": 1,
+                "delay_after": 100,
+                "name": name_var.get().strip()
             })
             self.refresh_points_list()
             self.select_index(len(self.points) - 1)
@@ -1140,30 +1402,28 @@ class AutoClicker:
         def on_click(x, y, button, pressed):
             if button != Button.left:
                 return
-            defaults = self.get_current_defaults()
             if self.adding_mode == "click" and pressed:
-                self.points.append({"action": "click", "x": x, "y": y, "name": "", **defaults})
-                self.root.after(0, self.finish_add_point, f"Click point added ({x},{y})")
+                self.root.after(0, self.finish_add_point_and_edit, "click",
+                                {"x": x, "y": y, "hold": 50, "count": 1,
+                                 "delay_after": 100, "type": "Left", "name": ""})
                 return False
             if self.adding_mode == "drag" and pressed:
                 self.temp_drag_start = (x, y)
                 self.adding_mode = "drag_release"
                 return True
             if self.adding_mode == "drag_release" and not pressed and self.temp_drag_start is not None:
-                self.points.append({
-                    "action": "drag",
+                self.root.after(0, self.finish_add_point_and_edit, "drag", {
                     "x": self.temp_drag_start[0], "y": self.temp_drag_start[1],
                     "drag_x": x, "drag_y": y,
-                    "hold": defaults["hold"], "count": defaults["count"],
-                    "delay_after": defaults["delay_after"], "type": "Left", "name": ""
+                    "hold": 300, "count": 1, "delay_after": 100, "type": "Left", "name": ""
                 })
-                self.root.after(0, self.finish_add_point, "Drag point added")
                 return False
 
         self.click_listener = mouse.Listener(on_click=on_click)
         self.click_listener.start()
 
-    def finish_add_point(self, message):
+    def finish_add_point_and_edit(self, action, data):
+        """After capturing coordinates, restore UI and open the Add/Edit-style popup."""
         self.adding_mode = None
         self.temp_drag_start = None
         if self.click_listener:
@@ -1173,10 +1433,9 @@ class AutoClicker:
             except Exception:
                 pass
             self.click_listener = None
-        self.refresh_points_list()
-        self.select_index(len(self.points) - 1)
         self.restore_after_capture()
-        self.status_label.config(text=message, fg="#a6e3a1")
+        self.status_label.config(text="Set properties for the new point...", fg="#f9e2af")
+        self.root.after(120, lambda: self.open_add_popup(action, data))
 
     def toggle_recording(self):
         if self.is_running:
@@ -1384,6 +1643,21 @@ class AutoClicker:
                         return
                     if not kstr or kstr in ("ctrl", "alt", "shift", "cmd"):
                         return
+                    # Disallow media / system special keys (volume, play/pause, brightness, etc.)
+                    # Function keys (F1–F12) are still allowed.
+                    kstr_lower = kstr.lower().replace("key.", "").replace(" ", "_")
+                    is_media = (
+                        kstr_lower.startswith(("media_", "volume_", "brightness_", "launch_", "browser_"))
+                        or any(s in kstr_lower for s in (
+                            "volume_up", "volume_down", "volume_mute",
+                            "play_pause", "next_track", "prev_track", "stop_media",
+                            "media_play", "media_pause", "media_stop",
+                        ))
+                    )
+                    if is_media:
+                        self.status_label.config(text="Media/system keys not allowed!", fg="#f38ba8")
+                        self.waiting_for_hotkey = None
+                        return
                     all_hk = {
                         "start": self.start_hotkey, "pause": self.pause_hotkey,
                         "stop": self.stop_hotkey,
@@ -1462,6 +1736,7 @@ class AutoClicker:
         self.stop_btn.config(state="normal")
         self.edit_btn.config(state="disabled")
         self.record_btn.config(state="disabled")
+        self.set_speed_controls_state(False)
         self.status_label.config(text="Running...", fg="#89b4fa")
         self.progress_label.config(text="")
         random_ms = self.get_safe_int(self.random_var, 0, 0, 500)
@@ -1478,10 +1753,12 @@ class AutoClicker:
             self.status_label.config(text="Paused — edit list freely, then Resume", fg="#f9e2af")
             if self.selected_index is not None and self.selected_index < len(self.points):
                 self.edit_btn.config(state="normal")
+            self.set_speed_controls_state(True)
         else:
             self.pause_btn.config(text="Pause")
             self.status_label.config(text="Running...", fg="#89b4fa")
             self.edit_btn.config(state="disabled")
+            self.set_speed_controls_state(False)
 
     def apply_pos_random(self, x, y, pos_rand):
         if pos_rand <= 0:
@@ -1494,11 +1771,20 @@ class AutoClicker:
             time.sleep(0.05)
         return self.stop_flag
 
+    def get_speed_factor(self):
+        try:
+            v = float(self.speed_var.get())
+            return max(0.1, min(20.0, v))
+        except Exception:
+            return 1.0
+
     def interruptible_sleep(self, duration_ms):
-        """Sleep in small chunks so stop/pause can react immediately."""
+        """Sleep in small chunks so stop/pause can react immediately. Respects global speed."""
         if duration_ms <= 0:
             return
-        end = time.time() + duration_ms / 1000.0
+        factor = self.get_speed_factor()
+        scaled = duration_ms / factor
+        end = time.time() + scaled / 1000.0
         while time.time() < end:
             if self.stop_flag:
                 return
@@ -1522,7 +1808,8 @@ class AutoClicker:
     def perform_drag(self, p, pos_rand):
         sx, sy = self.apply_pos_random(p["x"], p["y"], pos_rand)
         ex, ey = self.apply_pos_random(p["drag_x"], p["drag_y"], pos_rand)
-        duration = p.get("hold", 300) / 1000.0
+        factor = self.get_speed_factor()
+        duration = (p.get("hold", 300) / factor) / 1000.0
         self.mouse.position = (sx, sy)
         self.mouse.press(Button.left)
         steps = max(8, int(duration * 50))
@@ -1637,6 +1924,7 @@ class AutoClicker:
         self.pause_btn.config(state="disabled", text="Pause")
         self.stop_btn.config(state="disabled")
         self.record_btn.config(state="normal")
+        self.set_speed_controls_state(True)
         self.clear_highlight()
         if self.selected_index is not None and self.selected_index < len(self.points):
             self.edit_btn.config(state="normal")
@@ -1655,6 +1943,7 @@ class AutoClicker:
             "pos_random": self.pos_random_var.get(),
             "cycles": self.rep_var.get(),
             "infinite": self.infinite.get(),
+            "speed": self.speed_var.get(),
             "start_hotkey": self.start_hotkey,
             "pause_hotkey": self.pause_hotkey,
             "stop_hotkey": self.stop_hotkey,
@@ -1666,7 +1955,6 @@ class AutoClicker:
             "record_start_enabled": self.rs_hotkey_enabled.get(),
             "record_stop_enabled": self.re_hotkey_enabled.get(),
             "always_on_top": self.always_on_top.get(),
-            "defaults": self.get_current_defaults()
         }
         path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON Profile", "*.json")])
         if path:
@@ -1697,6 +1985,12 @@ class AutoClicker:
             self.rep_var.set(data.get("cycles", 1))
             self.infinite.set(data.get("infinite", False))
             self.toggle_infinite()
+            try:
+                self.speed_var.set(float(data.get("speed", 1.0)))
+                self._on_speed_change()
+            except Exception:
+                self.speed_var.set(1.0)
+                self._on_speed_change()
             self.start_hotkey = data.get("start_hotkey", "f1")
             self.pause_hotkey = data.get("pause_hotkey", "f2")
             self.stop_hotkey = data.get("stop_hotkey", "f3")
@@ -1714,14 +2008,6 @@ class AutoClicker:
             self.re_hotkey_enabled.set(data.get("record_stop_enabled", True))
             self.always_on_top.set(data.get("always_on_top", False))
             self.toggle_topmost()
-            defaults = data.get("defaults", {})
-            self.pt_hold_var.set(defaults.get("hold", 50))
-            self.pt_count_var.set(defaults.get("count", 1))
-            self.pt_delay_var.set(defaults.get("delay_after", 100))
-            typ = defaults.get("type", "Left")
-            self.pt_type_var.set(typ)
-            self.pt_type_combo.set(typ)
-            self.on_default_type_change()
             self.selected_index = None
             self.edit_btn.config(state="disabled")
             self.status_label.config(text="Profile loaded", fg="#a6e3a1")

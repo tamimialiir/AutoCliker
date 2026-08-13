@@ -1,11 +1,11 @@
 # Auto Clicker
 
-A powerful, modern **Auto Clicker** with full mouse & keyboard automation, recording, profiles, and a clean dark UI.
+A powerful, modern **Auto Clicker** with full mouse & keyboard automation, recording, profiles, speed control, and a clean dark UI.
 
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Version](https://img.shields.io/badge/Version-v4.9-orange)
+![Version](https://img.shields.io/badge/Version-v5.0-orange)
 
 ---
 
@@ -14,19 +14,21 @@ A powerful, modern **Auto Clicker** with full mouse & keyboard automation, recor
 - **Click, Drag, Scroll, Keyboard & Wait** actions in one sequence
 - **Record** real mouse + keyboard actions and convert them into editable points
 - **Pause / Resume** — stop mid-sequence, edit the list freely, then continue
+- **Speed control** (×0.1 – ×20) with live scaling of all delays, holds and drags
 - **Hotkeys** for Start / Pause / Stop / Start Recording / Stop Recording (fully customizable, each can be enabled/disabled)
-- **Random delay** (±ms) and **random position** (±px) for more human-like behavior
+- **Time Jitter** (±ms) and **Position Jitter** (±px) for more human-like behavior
 - **Cycles** + Infinite mode
 - **Save / Load** profiles (JSON)
 - **Drag & drop** reordering of points
 - Copy / Cut / Paste items (Ctrl+C / Ctrl+X / Ctrl+V)
-- Live position preview when editing points
+- **Live position preview** when editing — drag the on-screen marker to reposition
+- Optional **name** for every action type
 - Always-on-top option
 - Clean dark theme (Catppuccin-inspired)
 
 
 ## Screenshots
-![Main Window](screenshots/main_4.9.png)
+![Main Window](screenshots/main_5.0.png)
 
 
 ## Requirements
@@ -49,28 +51,32 @@ python main.py
 ## Usage Guide
 
 ### Adding Actions
-| Button          | Description                                          |
-|-----------------|------------------------------------------------------|
-| **Add Click**   | Click on screen to add a click point                 |
-| **Add Drag**    | Click & hold, then release to define a drag          |
-| **Add Wait**    | Insert a delay (in milliseconds)                     |
-| **Add Key**     | Add a key or combination (`ctrl+c`, `alt+f4`...)     |
-| **Add Scroll**  | Add mouse scroll (up/down) at a position             |
-| **Record**      | Record live mouse + keyboard actions                 |
+| Button          | Description                                                                 |
+|-----------------|-----------------------------------------------------------------------------|
+| **Add Click**   | Click on screen → settings popup opens to configure the point               |
+| **Add Drag**    | Press & hold, then release → settings popup opens                           |
+| **Add Scroll**  | Click on screen to set position → settings popup opens                      |
+| **Add Key**     | Type or capture a key / combination (`ctrl+c`, `alt+f4`...)                 |
+| **Add Wait**    | Insert a delay (in milliseconds)                                            |
+| **Record**      | Record live mouse + keyboard actions                                        |
 
+After capturing a Click, Drag or Scroll position, a settings dialog opens so you can set hold time, repeats, type, name, etc. before the item is added to the list.
 
 ### Editing & Organizing
-Double-click any item (or select + Edit) to modify it  
-Drag items in the list to reorder  
-Use ↑ / ↓ buttons or Delete key  
-Ctrl+C / Ctrl+X / Ctrl+V for copy / cut / paste
+Double-click any item (or select + **Edit**) to modify it.  
+While editing Click / Drag / Scroll points, an on-screen marker appears — **drag the marker** to change coordinates, or edit the numbers manually.  
+Drag items in the list to reorder.  
+Use ↑ / ↓ buttons or the Delete key.  
+Ctrl+C / Ctrl+X / Ctrl+V for copy / cut / paste.  
+You can give every item an optional **name** for easier organization.
 
 ### Global Settings
-**Random Time:** Adds random delay (±ms) to waits and repeats  
-**Random Position:** Slightly randomizes click/drag/scroll coordinates  
-**Cycles:** How many times the whole sequence should run  
-**Infinite:** Run forever until stopped  
-**Always on Top:** Keep the window above other windows
+**Speed:** Global playback speed from ×0.1 to ×20 (default ×1.0). Affects waits, holds, drag duration and repeat delays. Can only be changed before Start, while Paused, or after Stop. Use **Reset** to return to ×1.0.  
+**Time Jitter:** Adds random delay (±ms) to waits and repeats.  
+**Position Jitter:** Slightly randomizes click / drag / scroll coordinates (±px).  
+**Cycles:** How many times the whole sequence should run.  
+**Infinite:** Run forever until stopped.  
+**Always on Top:** Keep the window above other windows.
 
 ### Hotkeys (default)
 | Action              | Default Key |
@@ -81,13 +87,14 @@ Ctrl+C / Ctrl+X / Ctrl+V for copy / cut / paste
 | Start Recording     | `F4`        |
 | Stop Recording      | `F5`        |
 
-You can change all hotkeys from the Hotkeys section.
+You can change all hotkeys from the Hotkeys section.  
+Media / system keys (volume, play/pause, brightness, etc.) cannot be assigned as hotkeys.
 
 
 ## Profile System
 
-**Save Profile** → exports current sequence + all settings to a `.json` file  
-**Load Profile** → restores everything (points, hotkeys, random settings, etc.)
+**Save Profile** → exports current sequence + all settings (including speed) to a `.json` file  
+**Load Profile** → restores everything (points, hotkeys, jitter, speed, etc.)
 
 Perfect for sharing macros or switching between different tasks.
 
@@ -95,8 +102,10 @@ Perfect for sharing macros or switching between different tasks.
 ## Tips
 
 - Use **Record** for complex sequences, then clean them up with Edit.
-- For more natural behavior, enable a small Random Time and Random Position.
-- You can name each point (optional) for better organization.
+- For more natural behavior, enable a small Time Jitter and Position Jitter.
+- Name each point for better organization in long sequences.
+- Drag the on-screen preview marker when editing to reposition points quickly.
+- Use **Speed** above ×1 to run macros faster, or below ×1 for careful debugging.
 - The app forces English keyboard layout on Windows when focused (helps with key recording).
 - Use **Pause** when you need to adjust the sequence mid-run without losing progress.
 
@@ -110,6 +119,18 @@ Perfect for sharing macros or switching between different tasks.
 | Scroll   | Mouse wheel up or down at specific coordinates     |
 | Key      | Single key or combinations (`ctrl+shift+s`...)     |
 | Wait     | Precise delay in milliseconds                      |
+
+
+## What's new in v5.0
+
+- Removed global “Defaults for New Points” — each Click / Drag opens its own settings after capture
+- **Speed** slider (×0.1 – ×20) with Reset button
+- Draggable on-screen markers when editing positions
+- Add Scroll uses the same capture-then-configure flow as Click / Drag
+- Optional name field for Wait, Key and Scroll (all action types)
+- Renamed Random Time / Random Position → **Time Jitter** / **Position Jitter**
+- Media / system keys blocked from hotkey assignment
+- Button order: Click → Drag → Scroll → Key → Wait
 
 
 ## License

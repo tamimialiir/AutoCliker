@@ -1,7 +1,7 @@
 name: Build AutoClicker
 
 on:
-  workflow_dispatch:          # فقط دستی اجرا می‌شود
+  workflow_dispatch:
 
 jobs:
   # =========================
@@ -46,7 +46,6 @@ jobs:
           name: AutoClicker-Windows-Portable
           path: dist/AutoClicker_${{ steps.ver.outputs.version }}_Windows_Portable.exe
 
-      # ----- Installer (Inno Setup) -----
       - name: Install Inno Setup
         run: choco install innosetup -y
 
@@ -132,8 +131,14 @@ jobs:
             --add-data "icon.png:." \
             main.py
 
+      - name: Package as zip (ready for Release)
+        run: |
+          cd dist
+          ditto -c -k --keepParent "AutoClicker_${{ steps.ver.outputs.version }}_Mac.app" \
+            "AutoClicker_${{ steps.ver.outputs.version }}_Mac.zip"
+
       - name: Upload macOS App
         uses: actions/upload-artifact@v6
         with:
           name: AutoClicker-macOS
-          path: dist/AutoClicker_${{ steps.ver.outputs.version }}_Mac.app
+          path: dist/AutoClicker_${{ steps.ver.outputs.version }}_Mac.zip

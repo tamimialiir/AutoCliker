@@ -1,7 +1,7 @@
 name: Build AutoClicker
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:          # فقط دستی اجرا می‌شود
 
 jobs:
   # =========================
@@ -36,15 +36,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyinstaller pynput
 
-      - name: Build Windows Portable (onefile)
+      - name: Build Windows Portable
         run: |
-          pyinstaller --noconsole --onefile --name "AutoClicker_${{ steps.ver.outputs.version }}_Windows" --icon=icon.ico --add-data "icon.png;." main.py
+          pyinstaller --noconsole --onefile --name "AutoClicker_${{ steps.ver.outputs.version }}_Windows_Portable" --icon=icon.ico --add-data "icon.png;." main.py
 
       - name: Upload Windows Portable
         uses: actions/upload-artifact@v6
         with:
           name: AutoClicker-Windows-Portable
-          path: dist/AutoClicker_${{ steps.ver.outputs.version }}_Windows.exe
+          path: dist/AutoClicker_${{ steps.ver.outputs.version }}_Windows_Portable.exe
 
       # ----- Installer (Inno Setup) -----
       - name: Install Inno Setup
@@ -70,11 +70,11 @@ jobs:
           ArchitecturesInstallIn64BitMode=x64
 
           [Files]
-          Source: "dist\AutoClicker_${ver}_Windows.exe"; DestDir: "{app}"; Flags: ignoreversion
+          Source: "dist\AutoClicker_${ver}_Windows_Portable.exe"; DestDir: "{app}"; Flags: ignoreversion
 
           [Icons]
-          Name: "{group}\Auto Clicker"; Filename: "{app}\AutoClicker_${ver}_Windows.exe"
-          Name: "{autodesktop}\Auto Clicker"; Filename: "{app}\AutoClicker_${ver}_Windows.exe"; Tasks: desktopicon
+          Name: "{group}\Auto Clicker"; Filename: "{app}\AutoClicker_${ver}_Windows_Portable.exe"
+          Name: "{autodesktop}\Auto Clicker"; Filename: "{app}\AutoClicker_${ver}_Windows_Portable.exe"; Tasks: desktopicon
 
           [Tasks]
           Name: "desktopicon"; Description: "Create a desktop icon"; GroupDescription: "Additional icons:"; Flags: unchecked
@@ -91,7 +91,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: AutoClicker-Windows-Installer
-          path: installer_output/AutoClicker_${{ steps.ver.outputs.version }}_Setup.exe
+          path: installer_output/AutoClicker_${{ steps.ver.outputs.version }}_Windows_Setup.exe
 
   # =========================
   # 2. macOS .app

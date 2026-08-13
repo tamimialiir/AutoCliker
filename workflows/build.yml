@@ -1,0 +1,139 @@
+name: Build AutoClicker
+
+on:
+  workflow_dispatch:
+
+jobs:
+  # =========================
+  # 1. Windows Portable + Installer
+  # =========================
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Get version from main.py
+        id: ver
+        shell: bash
+        run: |
+          VERSION=$(python -c "
+          import re
+          text = open('main.py', encoding='utf-8').read()
+          m = re.search(r'self\.version\s*=\s*[\"\\']([^\"\\']+)[\"\\']', text)
+          print(m.group(1) if m else 'unknown')
+          ")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller pynput
+
+      - name: Build Windows Portable (onefile)
+        run: |
+          pyinstaller --noconsole --onefile --name "AutoClicker_${{ steps.ver.outputs.version }}_Windows" --icon=icon.ico --add-data "icon.png;." main.py
+
+      - name: Upload Windows Portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoClicker-Windows-Portable
+          path: dist/AutoClicker_${{ steps.ver.outputs.version }}_Windows.exe
+
+      # ----- Installer (Inno Setup) -----
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Create Inno Setup script
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.ver.outputs.version }}"
+          @"
+          [Setup]
+          AppName=Auto Clicker
+          AppVersion=$ver
+          AppPublisher=AutoClicker
+          DefaultDirName={autopf}\AutoClicker
+          DefaultGroupName=Auto Clicker
+          OutputDir=installer_output
+          OutputBaseFilename=AutoClicker_${ver}_Setup
+          SetupIconFile=icon.ico
+          Compression=lzma
+          SolidCompression=yes
+          PrivilegesRequired=lowest
+          ArchitecturesInstallIn64BitMode=x64
+
+          [Files]
+          Source: "dist\AutoClicker_${ver}_Windows.exe"; DestDir: "{app}"; Flags: ignoreversion
+
+          [Icons]
+          Name: "{group}\Auto Clicker"; Filename: "{app}\AutoClicker_${ver}_Windows.exe"
+          Name: "{autodesktop}\Auto Clicker"; Filename: "{app}\AutoClicker_${ver}_Windows.exe"; Tasks: desktopicon
+
+          [Tasks]
+          Name: "desktopicon"; Description: "Create a desktop icon"; GroupDescription: "Additional icons:"; Flags: unchecked
+
+          [Run]
+          Filename: "{app}\AutoClicker_${ver}_Windows.exe"; Description: "Launch Auto Clicker"; Flags: nowait postinstall skipifsilent
+          "@ | Out-File -FilePath setup.iss -Encoding utf8
+
+      - name: Build Installer
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup.iss
+
+      - name: Upload Windows Installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoClicker-Windows-Installer
+          path: installer_output/AutoClicker_${{ steps.ver.outputs.version }}_Setup.exe
+
+  # =========================
+  # 2. macOS .app
+  # =========================
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Get version from main.py
+        id: ver
+        shell: bash
+        run: |
+          VERSION=$(python -c "
+          import re
+          text = open('main.py', encoding='utf-8').read()
+          m = re.search(r'self\.version\s*=\s*[\"\\']([^\"\\']+)[\"\\']', text)
+          print(m.group(1) if m else 'unknown')
+          ")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller pynput
+
+      - name: Build macOS App
+        run: |
+          pyinstaller --noconsole --windowed --name "AutoClicker_${{ steps.ver.outputs.version }}_Mac" \
+            --icon=icon.icns \
+            --add-data "icon.png:." \
+            main.py
+
+      - name: Upload macOS App
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoClicker-macOS
+          path: dist/AutoClicker_${{ steps.ver.outputs.version }}_Mac.app

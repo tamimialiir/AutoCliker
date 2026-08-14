@@ -80,11 +80,11 @@ You can give every item an optional **name** for easier organization.
 The action list is **color-coded with emojis**:
 | Action | Emoji | Color   |
 |--------|-------|---------|
-| Click  | 🖱️    | Green   |
-| Drag   | ↔️    | Blue    |
-| Scroll | ↕️    | Purple  |
-| Wait   | ⏱️    | Yellow  |
-| Key    | ⌨️    | Orange  |
+| Click  |  🖱️   | Green   |
+| Drag   |  ↔️   | Blue    |
+| Scroll |  ↕️   | Purple  |
+| Wait   |  ⏱️   | Yellow  |
+| Key    |  ⌨️   | Orange  |
 
 ### Global Settings
 **Speed:** Global playback speed from ×0.1 to ×20 (default ×1.0). Affects waits, holds, drag duration and repeat delays. Can only be changed before Start, while Paused, or after Stop. Use **Reset** to return to ×1.0.  
@@ -97,11 +97,11 @@ The action list is **color-coded with emojis**:
 ### Hotkeys (default)
 | Action              | Default Key |
 |---------------------|-------------|
-| Start               | `F1`        |
-| Pause / Resume      | `F2`        |
-| Stop                | `F3`        |
-| Start Recording     | `F4`        |
-| Stop Recording      | `F5`        |
+| Start               |    `F1`     |
+| Pause / Resume      |    `F2`     |
+| Stop                |    `F3`     |
+| Start Recording     |    `F4`     |
+| Stop Recording      |    `F5`     |
 
 You can change all hotkeys from the Hotkeys section.  
 Media / system keys (volume, play/pause, brightness, etc.) cannot be assigned as hotkeys.

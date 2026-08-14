@@ -79,7 +79,7 @@ You can give every item an optional **name** for easier organization.
 
 The action list is **color-coded with emojis**:
 | Action | Emoji | Color   |
-|--------|-------|---------|
+|--------|:-------:|---------|
 | Click  |  🖱️   | Green   |
 | Drag   |  ↔️   | Blue    |
 | Scroll |  ↕️   | Purple  |
@@ -96,7 +96,7 @@ The action list is **color-coded with emojis**:
 
 ### Hotkeys (default)
 | Action              | Default Key |
-|---------------------|-------------|
+|---------------------|:-------------:|
 | Start               |    `F1`     |
 | Pause / Resume      |    `F2`     |
 | Stop                |    `F3`     |

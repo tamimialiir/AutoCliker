@@ -55,11 +55,11 @@ jobs:
           $ver = "${{ steps.ver.outputs.version }}"
           @"
           [Setup]
-          AppName=Auto Clicker
+          AppName=Auto Clicker Pro
           AppVersion=$ver
           AppPublisher=AutoClickerPro
           DefaultDirName={autopf}\AutoClickerPro
-          DefaultGroupName=Auto Clicker
+          DefaultGroupName=Auto Clicker Pro
           OutputDir=installer_output
           OutputBaseFilename=AutoClickerPro_${ver}_Windows_Setup
           SetupIconFile=icon.ico
@@ -72,8 +72,8 @@ jobs:
           Source: "dist\AutoClickerPro_${ver}_Windows_Portable.exe"; DestDir: "{app}"; Flags: ignoreversion
 
           [Icons]
-          Name: "{group}\Auto Clicker"; Filename: "{app}\AutoClickerPro_${ver}_Windows_Portable.exe"
-          Name: "{autodesktop}\Auto Clicker"; Filename: "{app}\AutoClickerPro_${ver}_Windows_Portable.exe"; Tasks: desktopicon
+          Name: "{group}\Auto Clicker Pro"; Filename: "{app}\AutoClickerPro_${ver}_Windows_Portable.exe"
+          Name: "{autodesktop}\Auto Clicker Pro"; Filename: "{app}\AutoClickerPro_${ver}_Windows_Portable.exe"; Tasks: desktopicon
 
           [Tasks]
           Name: "desktopicon"; Description: "Create a desktop icon"; GroupDescription: "Additional icons:"; Flags: unchecked

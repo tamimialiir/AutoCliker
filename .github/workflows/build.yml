@@ -1,4 +1,4 @@
-name: Build AutoClicker
+name: Build AutoClickerPro
 
 on:
   workflow_dispatch:
@@ -38,13 +38,13 @@ jobs:
 
       - name: Build Windows Portable
         run: |
-          pyinstaller --noconsole --onefile --name "AutoClicker_${{ steps.ver.outputs.version }}_Windows_Portable" --icon=icon.ico --add-data "icon.png;." main.py
+          pyinstaller --noconsole --onefile --name "AutoClickerPro_${{ steps.ver.outputs.version }}_Windows_Portable" --icon=icon.ico --add-data "icon.png;." main.py
 
       - name: Upload Windows Portable
         uses: actions/upload-artifact@v6
         with:
-          name: AutoClicker-Windows-Portable
-          path: dist/AutoClicker_${{ steps.ver.outputs.version }}_Windows_Portable.exe
+          name: AutoClickerPro-Windows-Portable
+          path: dist/AutoClickerPro_${{ steps.ver.outputs.version }}_Windows_Portable.exe
 
       - name: Install Inno Setup
         run: choco install innosetup -y
@@ -57,11 +57,11 @@ jobs:
           [Setup]
           AppName=Auto Clicker
           AppVersion=$ver
-          AppPublisher=AutoClicker
-          DefaultDirName={autopf}\AutoClicker
+          AppPublisher=AutoClickerPro
+          DefaultDirName={autopf}\AutoClickerPro
           DefaultGroupName=Auto Clicker
           OutputDir=installer_output
-          OutputBaseFilename=AutoClicker_${ver}_Windows_Setup
+          OutputBaseFilename=AutoClickerPro_${ver}_Windows_Setup
           SetupIconFile=icon.ico
           Compression=lzma
           SolidCompression=yes
@@ -69,17 +69,17 @@ jobs:
           ArchitecturesInstallIn64BitMode=x64
 
           [Files]
-          Source: "dist\AutoClicker_${ver}_Windows_Portable.exe"; DestDir: "{app}"; Flags: ignoreversion
+          Source: "dist\AutoClickerPro_${ver}_Windows_Portable.exe"; DestDir: "{app}"; Flags: ignoreversion
 
           [Icons]
-          Name: "{group}\Auto Clicker"; Filename: "{app}\AutoClicker_${ver}_Windows_Portable.exe"
-          Name: "{autodesktop}\Auto Clicker"; Filename: "{app}\AutoClicker_${ver}_Windows_Portable.exe"; Tasks: desktopicon
+          Name: "{group}\Auto Clicker"; Filename: "{app}\AutoClickerPro_${ver}_Windows_Portable.exe"
+          Name: "{autodesktop}\Auto Clicker"; Filename: "{app}\AutoClickerPro_${ver}_Windows_Portable.exe"; Tasks: desktopicon
 
           [Tasks]
           Name: "desktopicon"; Description: "Create a desktop icon"; GroupDescription: "Additional icons:"; Flags: unchecked
 
           [Run]
-          Filename: "{app}\AutoClicker_${ver}_Windows_Portable.exe"; Description: "Launch Auto Clicker"; Flags: nowait postinstall skipifsilent
+          Filename: "{app}\AutoClickerPro_${ver}_Windows_Portable.exe"; Description: "Launch Auto Clicker"; Flags: nowait postinstall skipifsilent
           "@ | Out-File -FilePath setup.iss -Encoding utf8
 
       - name: Build Installer
@@ -89,8 +89,8 @@ jobs:
       - name: Upload Windows Installer
         uses: actions/upload-artifact@v6
         with:
-          name: AutoClicker-Windows-Installer
-          path: installer_output/AutoClicker_${{ steps.ver.outputs.version }}_Windows_Setup.exe
+          name: AutoClickerPro-Windows-Installer
+          path: installer_output/AutoClickerPro_${{ steps.ver.outputs.version }}_Windows_Setup.exe
 
   # =========================
   # 2. macOS .app
@@ -126,7 +126,7 @@ jobs:
 
       - name: Build macOS App
         run: |
-          pyinstaller --noconsole --windowed --name "AutoClicker_${{ steps.ver.outputs.version }}_Mac" \
+          pyinstaller --noconsole --windowed --name "AutoClickerPro_${{ steps.ver.outputs.version }}_Mac" \
             --icon=icon.icns \
             --add-data "icon.png:." \
             main.py
@@ -134,11 +134,11 @@ jobs:
       - name: Package as zip (ready for Release)
         run: |
           cd dist
-          ditto -c -k --keepParent "AutoClicker_${{ steps.ver.outputs.version }}_Mac.app" \
-            "AutoClicker_${{ steps.ver.outputs.version }}_Mac.zip"
+          ditto -c -k --keepParent "AutoClickerPro_${{ steps.ver.outputs.version }}_Mac.app" \
+            "AutoClickerPro_${{ steps.ver.outputs.version }}_Mac.zip"
 
       - name: Upload macOS App
         uses: actions/upload-artifact@v6
         with:
-          name: AutoClicker-macOS
-          path: dist/AutoClicker_${{ steps.ver.outputs.version }}_Mac.zip
+          name: AutoClickerPro-macOS
+          path: dist/AutoClickerPro_${{ steps.ver.outputs.version }}_Mac.zip

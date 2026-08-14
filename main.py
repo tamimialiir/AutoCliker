@@ -9,6 +9,9 @@ import random
 import platform
 import ctypes
 import copy
+import webbrowser
+import urllib.request
+import re
 from pynput import mouse, keyboard
 from pynput.mouse import Button, Controller as MouseController
 from pynput.keyboard import Key, KeyCode, Listener as KeyboardListener, Controller as KeyboardController
@@ -122,13 +125,67 @@ def parse_key_combo(combo):
     return modifiers, main
 
 
+# Colors for action types in the points list (Catppuccin-inspired)
+ACTION_COLORS = {
+    "click":  "#a6e3a1",  # green
+    "drag":   "#89b4fa",  # blue
+    "scroll": "#cba6f7",  # purple
+    "wait":   "#f9e2af",  # yellow
+    "key":    "#fab387",  # peach / orange
+}
+
+
+class ToolTip:
+    """Simple tooltip that appears after a short delay. All texts are English."""
+
+    def __init__(self, widget, text, delay=450):
+        self.widget = widget
+        self.text = text
+        self.delay = delay
+        self.tipwindow = None
+        self.id = None
+        self.widget.bind("<Enter>", self._schedule)
+        self.widget.bind("<Leave>", self._hide)
+        self.widget.bind("<ButtonPress>", self._hide)
+
+    def _schedule(self, event=None):
+        self._hide()
+        self.id = self.widget.after(self.delay, self._show)
+
+    def _show(self):
+        if self.tipwindow or not self.text:
+            return
+        x = self.widget.winfo_rootx() + 20
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
+        self.tipwindow = tw = tk.Toplevel(self.widget)
+        tw.wm_overrideredirect(True)
+        tw.wm_geometry(f"+{x}+{y}")
+        tw.attributes("-topmost", True)
+        label = tk.Label(
+            tw, text=self.text, justify="left",
+            background="#313244", foreground="#cdd6f4",
+            relief="solid", borderwidth=1,
+            font=("Segoe UI", 8), padx=6, pady=3
+        )
+        label.pack()
+
+    def _hide(self, event=None):
+        if self.id:
+            self.widget.after_cancel(self.id)
+            self.id = None
+        if self.tipwindow:
+            self.tipwindow.destroy()
+            self.tipwindow = None
+
+
 class AutoClicker:
     def __init__(self, root):
         self.root = root
-        self.root.title("Auto Clicker")
+        self.root.title("Auto Clicker Pro")
         self.root.configure(bg="#1e1e2e")
         self.root.resizable(False, False)
-        self.version = "v5.0"
+        self.version = "v5.1"
+        self.github_url = "https://github.com/tamimialiir/AutoClickerPro"
         
         try:
             icon_path = resource_path("icon.png")
@@ -253,7 +310,7 @@ class AutoClicker:
 
         vcmd = (self.root.register(self.validate_number), "%d", "%P")
 
-        tk.Label(self.root, text="Auto Clicker", font=("Segoe UI", 15, "bold"),
+        tk.Label(self.root, text="Auto Clicker Pro", font=("Segoe UI", 15, "bold"),
                  bg="#1e1e2e", fg="#89b4fa").pack(pady=(6, 3))
 
         points_frame = ttk.LabelFrame(self.root, text=" Points Sequence", padding=5)
@@ -265,6 +322,7 @@ class AutoClicker:
                                          selectbackground="#89b4fa", font=("Consolas", 9),
                                          relief="flat", highlightthickness=0)
         self.points_listbox.pack(side="left", fill="x", expand=True)
+        ToolTip(self.points_listbox, "Action sequence. Drag to reorder. Double-click to edit.\nColors + icons: 🖱️ Click (green) · ↔️ Drag (blue) · ↕️ Scroll (purple) · ⏱️ Wait (yellow) · ⌨️ Key (orange)")
         self.points_listbox.bind("<<ListboxSelect>>", self.on_point_select)
         self.points_listbox.bind("<Double-Button-1>", lambda e: self.open_edit_popup())
         self.points_listbox.bind("<ButtonPress-1>", self.on_list_drag_start)
@@ -277,30 +335,50 @@ class AutoClicker:
 
         btn_row = tk.Frame(points_frame, bg="#1e1e2e")
         btn_row.pack(fill="x", pady=(4, 0))
-        ttk.Button(btn_row, text="Add Click", command=lambda: self.start_add_point("click")).pack(side="left", expand=True, fill="x", padx=(0, 2))
-        ttk.Button(btn_row, text="Add Drag", command=lambda: self.start_add_point("drag")).pack(side="left", expand=True, fill="x", padx=2)
-        ttk.Button(btn_row, text="Add Scroll", command=self.start_add_scroll).pack(side="left", expand=True, fill="x", padx=2)
-        ttk.Button(btn_row, text="Add Key", command=self.add_key_action).pack(side="left", expand=True, fill="x", padx=2)
-        ttk.Button(btn_row, text="Add Wait", command=self.add_wait).pack(side="left", expand=True, fill="x", padx=(2, 0))
+        btn_add_click = ttk.Button(btn_row, text="Add Click", command=lambda: self.start_add_point("click"))
+        btn_add_click.pack(side="left", expand=True, fill="x", padx=(0, 2))
+        ToolTip(btn_add_click, "Capture a mouse click position on screen")
+        btn_add_drag = ttk.Button(btn_row, text="Add Drag", command=lambda: self.start_add_point("drag"))
+        btn_add_drag.pack(side="left", expand=True, fill="x", padx=2)
+        ToolTip(btn_add_drag, "Capture a drag action (press, move, release)")
+        btn_add_scroll = ttk.Button(btn_row, text="Add Scroll", command=self.start_add_scroll)
+        btn_add_scroll.pack(side="left", expand=True, fill="x", padx=2)
+        ToolTip(btn_add_scroll, "Add a mouse scroll action at a chosen position")
+        btn_add_key = ttk.Button(btn_row, text="Add Key", command=self.add_key_action)
+        btn_add_key.pack(side="left", expand=True, fill="x", padx=2)
+        ToolTip(btn_add_key, "Add a keyboard key or key combination")
+        btn_add_wait = ttk.Button(btn_row, text="Add Wait", command=self.add_wait)
+        btn_add_wait.pack(side="left", expand=True, fill="x", padx=(2, 0))
+        ToolTip(btn_add_wait, "Add a timed delay (wait) step")
 
         btn_row2 = tk.Frame(points_frame, bg="#1e1e2e")
         btn_row2.pack(fill="x", pady=(3, 0))
 
-        rec_frame = tk.Frame(btn_row2, bg="#1e1e2e")
-        rec_frame.pack(side="left", expand=True, fill="x", padx=(0, 2))
-        self.record_indicator = tk.Canvas(rec_frame, width=14, height=14, bg="#1e1e2e",
-                                          highlightthickness=0, bd=0)
-        self.record_indicator.pack(side="left", padx=(0, 4))
-        self.record_indicator.create_oval(2, 2, 12, 12, fill="#5c1a1a", outline="", tags="dot")
-        self.record_btn = ttk.Button(rec_frame, text="Record", command=self.toggle_recording)
-        self.record_btn.pack(side="left", expand=True, fill="x")
+        # Colored dots as PhotoImage so they sit INSIDE a normal ttk.Button
+        self._rec_dot_idle = self._make_dot_image("#5c1a1a", size=10)
+        self._rec_dot_active = self._make_dot_image("#ef4444", size=10)
+        self.record_btn = ttk.Button(
+            btn_row2, text="Record", command=self.toggle_recording,
+            image=self._rec_dot_idle, compound="left"
+        )
+        self.record_btn.pack(side="left", expand=True, fill="x", padx=(0, 2))
+        ToolTip(self.record_btn, "Start / stop recording mouse & keyboard actions")
 
         self.edit_btn = ttk.Button(btn_row2, text="Edit", command=self.open_edit_popup, state="disabled")
         self.edit_btn.pack(side="left", expand=True, fill="x", padx=2)
-        ttk.Button(btn_row2, text="↑", width=3, command=self.move_up).pack(side="left", padx=2)
-        ttk.Button(btn_row2, text="↓", width=3, command=self.move_down).pack(side="left", padx=2)
-        ttk.Button(btn_row2, text="Remove", command=self.remove_point).pack(side="left", expand=True, fill="x", padx=2)
-        ttk.Button(btn_row2, text="Clear", command=self.clear_points).pack(side="left", expand=True, fill="x", padx=(2, 0))
+        ToolTip(self.edit_btn, "Edit the selected action (or double-click the list item)")
+        btn_up = ttk.Button(btn_row2, text="↑", width=3, command=self.move_up)
+        btn_up.pack(side="left", padx=2)
+        ToolTip(btn_up, "Move selected action up")
+        btn_down = ttk.Button(btn_row2, text="↓", width=3, command=self.move_down)
+        btn_down.pack(side="left", padx=2)
+        ToolTip(btn_down, "Move selected action down")
+        btn_remove = ttk.Button(btn_row2, text="Remove", command=self.remove_point)
+        btn_remove.pack(side="left", expand=True, fill="x", padx=2)
+        ToolTip(btn_remove, "Remove the selected action (Delete key)")
+        btn_clear = ttk.Button(btn_row2, text="Clear", command=self.clear_points)
+        btn_clear.pack(side="left", expand=True, fill="x", padx=(2, 0))
+        ToolTip(btn_clear, "Clear all actions from the list")
 
         global_frame = ttk.LabelFrame(self.root, text=" Global Settings ", padding=8)
         global_frame.pack(fill="x", padx=10, pady=2)
@@ -322,6 +400,7 @@ class AutoClicker:
             command=self._on_speed_change
         )
         self.speed_scale.pack(side="left", padx=(10, 6), fill="x", expand=True)
+        ToolTip(self.speed_scale, "Playback speed multiplier (0.1x – 20x). Higher = faster.")
         self.speed_value_label = tk.Label(sp, text="x1.0", bg="#313244", fg="#89b4fa",
                                           font=("Segoe UI", 9, "bold"), width=6, anchor="w")
         self.speed_value_label.pack(side="left")
@@ -329,6 +408,7 @@ class AutoClicker:
                                           style="Hotkey.TButton",
                                           command=self.reset_speed)
         self.speed_reset_btn.pack(side="left", padx=(4, 0))
+        ToolTip(self.speed_reset_btn, "Reset speed to 1.0x")
 
         g_row1 = tk.Frame(global_frame, bg="#1e1e2e")
         g_row1.pack(fill="x", pady=(0, 4))
@@ -339,8 +419,10 @@ class AutoClicker:
         rt.pack(fill="x")
         tk.Label(rt, text="⏱  Time Jitter", bg="#313244", fg="#a6adc8", font=("Segoe UI", 8)).pack(side="left")
         self.random_var = tk.IntVar(value=0)
-        ttk.Spinbox(rt, from_=0, to=500, textvariable=self.random_var, width=5,
-                    validate="key", validatecommand=vcmd).pack(side="left", padx=(8, 0))
+        spin_time_jitter = ttk.Spinbox(rt, from_=0, to=500, textvariable=self.random_var, width=5,
+                    validate="key", validatecommand=vcmd)
+        spin_time_jitter.pack(side="left", padx=(8, 0))
+        ToolTip(spin_time_jitter, "Randomize delays by ± this many milliseconds (human-like timing)")
         tk.Label(rt, text="±ms", bg="#313244", fg="#6c7086", font=("Segoe UI", 8)).pack(side="left", padx=(2, 0))
 
         pos_box = tk.Frame(g_row1, bg="#313244", padx=8, pady=6)
@@ -349,8 +431,10 @@ class AutoClicker:
         rp.pack(fill="x")
         tk.Label(rp, text="🎯  Pos. Jitter", bg="#313244", fg="#a6adc8", font=("Segoe UI", 8)).pack(side="left")
         self.pos_random_var = tk.IntVar(value=0)
-        ttk.Spinbox(rp, from_=0, to=50, textvariable=self.pos_random_var, width=5,
-                    validate="key", validatecommand=vcmd).pack(side="left", padx=(8, 0))
+        spin_pos_jitter = ttk.Spinbox(rp, from_=0, to=50, textvariable=self.pos_random_var, width=5,
+                    validate="key", validatecommand=vcmd)
+        spin_pos_jitter.pack(side="left", padx=(8, 0))
+        ToolTip(spin_pos_jitter, "Randomize click/drag positions by ± this many pixels")
         tk.Label(rp, text="±px", bg="#313244", fg="#6c7086", font=("Segoe UI", 8)).pack(side="left", padx=(2, 0))
 
         g_row2 = tk.Frame(global_frame, bg="#1e1e2e")
@@ -365,21 +449,26 @@ class AutoClicker:
         self.rep_spin = ttk.Spinbox(cy, from_=1, to=99999, textvariable=self.rep_var, width=5,
                                     validate="key", validatecommand=vcmd)
         self.rep_spin.pack(side="left", padx=(8, 0))
-        ttk.Checkbutton(cy, text="Infinite", variable=self.infinite,
-                        command=self.toggle_infinite).pack(side="left", padx=(10, 0))
+        ToolTip(self.rep_spin, "Number of times to repeat the entire sequence")
+        chk_infinite = ttk.Checkbutton(cy, text="Infinite", variable=self.infinite,
+                        command=self.toggle_infinite)
+        chk_infinite.pack(side="left", padx=(10, 0))
+        ToolTip(chk_infinite, "Repeat the sequence forever until Stop is pressed")
 
         opt_box = tk.Frame(g_row2, bg="#313244", padx=8, pady=6)
         opt_box.pack(side="left", fill="both", expand=True, padx=(4, 0))
         op = tk.Frame(opt_box, bg="#313244")
         op.pack(fill="x")
         tk.Label(op, text="⚙  Options ", bg="#313244", fg="#a6adc8", font=("Segoe UI", 8)).pack(side="left")
-        ttk.Checkbutton(op, text="Always on Top", variable=self.always_on_top,
-                        command=self.toggle_topmost).pack(side="left", padx=(10, 0))
+        chk_topmost = ttk.Checkbutton(op, text="Always on Top", variable=self.always_on_top,
+                        command=self.toggle_topmost)
+        chk_topmost.pack(side="left", padx=(10, 0))
+        ToolTip(chk_topmost, "Keep the Auto Clicker Pro window above all other windows")
 
         hotkey_frame = ttk.LabelFrame(self.root, text=" Hotkeys ", padding=8)
         hotkey_frame.pack(fill="x", padx=10, pady=2)
 
-        def make_hk_box(parent, label_attr, text, which, enabled_var, padx_cfg):
+        def make_hk_box(parent, label_attr, text, which, enabled_var, padx_cfg, tip_change, tip_on):
             box = tk.Frame(parent, bg="#313244", padx=8, pady=5)
             box.pack(side="left", fill="x", expand=True, **padx_cfg)
             inner = tk.Frame(box, bg="#313244")
@@ -388,49 +477,71 @@ class AutoClicker:
                            font=("Segoe UI", 8), anchor="w")
             lbl.pack(side="left")
             setattr(self, label_attr, lbl)
-            ttk.Button(inner, text="Change", width=7,
+            btn_change = ttk.Button(inner, text="Change", width=7,
                        style="Hotkey.TButton",
-                       command=lambda w=which: self.change_hotkey(w)).pack(side="right", padx=(4, 0))
-            ttk.Checkbutton(inner, text="On", variable=enabled_var,
-                            style="Hotkey.TCheckbutton").pack(side="right")
+                       command=lambda w=which: self.change_hotkey(w))
+            btn_change.pack(side="right", padx=(4, 0))
+            ToolTip(btn_change, tip_change)
+            chk_on = ttk.Checkbutton(inner, text="On", variable=enabled_var,
+                            style="Hotkey.TCheckbutton")
+            chk_on.pack(side="right")
+            ToolTip(chk_on, tip_on)
             return box
 
         hk_row1 = tk.Frame(hotkey_frame, bg="#1e1e2e")
         hk_row1.pack(fill="x", pady=(0, 4))
         make_hk_box(hk_row1, "start_hk_label",
                     f"▶ Start: {self.start_hotkey.upper()}", "start",
-                    self.g_hotkey_enabled, {"padx": (0, 2)})
+                    self.g_hotkey_enabled, {"padx": (0, 2)},
+                    "Click then press a key to set the Start hotkey",
+                    "Enable or disable the Start hotkey")
         make_hk_box(hk_row1, "pause_hk_label",
                     f"⏸ Pause: {self.pause_hotkey.upper()}", "pause",
-                    self.p_hotkey_enabled, {"padx": (2, 2)})
+                    self.p_hotkey_enabled, {"padx": (2, 2)},
+                    "Click then press a key to set the Pause/Resume hotkey",
+                    "Enable or disable the Pause hotkey")
         make_hk_box(hk_row1, "stop_hk_label",
                     f"⏹ Stop: {self.stop_hotkey.upper()}", "stop",
-                    self.s_hotkey_enabled, {"padx": (2, 0)})
+                    self.s_hotkey_enabled, {"padx": (2, 0)},
+                    "Click then press a key to set the Stop hotkey",
+                    "Enable or disable the Stop hotkey")
 
         hk_row2 = tk.Frame(hotkey_frame, bg="#1e1e2e")
         hk_row2.pack(fill="x")
         make_hk_box(hk_row2, "record_start_hk_label",
                     f"⏺ Start Rec: {self.record_start_hotkey.upper()}", "record_start",
-                    self.rs_hotkey_enabled, {"padx": (0, 2)})
+                    self.rs_hotkey_enabled, {"padx": (0, 2)},
+                    "Click then press a key to set the Start Recording hotkey",
+                    "Enable or disable the Start Recording hotkey")
         make_hk_box(hk_row2, "record_stop_hk_label",
                     f"⏹ Stop Rec: {self.record_stop_hotkey.upper()}", "record_stop",
-                    self.re_hotkey_enabled, {"padx": (2, 0)})
+                    self.re_hotkey_enabled, {"padx": (2, 0)},
+                    "Click then press a key to set the Stop Recording hotkey",
+                    "Enable or disable the Stop Recording hotkey")
 
         profile_frame = tk.Frame(self.root, bg="#1e1e2e")
         profile_frame.pack(fill="x", padx=10, pady=3)
-        ttk.Button(profile_frame, text="Save Profile", command=self.save_profile).pack(side="left", expand=True, fill="x", padx=(0, 3))
-        ttk.Button(profile_frame, text="Load Profile", command=self.load_profile).pack(side="left", expand=True, fill="x", padx=(3, 0))
+        btn_save = ttk.Button(profile_frame, text="Save Profile", command=self.save_profile)
+        btn_save.pack(side="left", expand=True, fill="x", padx=(0, 3))
+        ToolTip(btn_save, "Save the current sequence and settings to a JSON file")
+        btn_load = ttk.Button(profile_frame, text="Load Profile", command=self.load_profile)
+        btn_load.pack(side="left", expand=True, fill="x", padx=(3, 0))
+        ToolTip(btn_load, "Load a previously saved profile from a JSON file")
 
         action_frame = tk.Frame(self.root, bg="#1e1e2e")
         action_frame.pack(fill="x", padx=10, pady=2)
         self.start_btn = ttk.Button(action_frame, text="Start", command=self.start_clicking)
         self.start_btn.pack(side="left", expand=True, fill="x", padx=(0, 2))
+        ToolTip(self.start_btn, "Start playing the action sequence")
         self.pause_btn = ttk.Button(action_frame, text="Pause", command=self.toggle_pause, state="disabled")
         self.pause_btn.pack(side="left", expand=True, fill="x", padx=2)
+        ToolTip(self.pause_btn, "Pause / resume the running sequence (you can edit the list while paused)")
         self.stop_btn = ttk.Button(action_frame, text="Stop", command=self.stop_clicking, state="disabled")
         self.stop_btn.pack(side="left", expand=True, fill="x", padx=2)
+        ToolTip(self.stop_btn, "Stop the running sequence immediately")
         self.exit_btn = ttk.Button(action_frame, text="Exit", command=self.exit_app)
         self.exit_btn.pack(side="left", expand=True, fill="x", padx=(2, 0))
+        ToolTip(self.exit_btn, "Close the application")
 
         bottom = tk.Frame(self.root, bg="#1e1e2e")
         bottom.pack(fill="x", padx=10, pady=(4, 6))
@@ -440,8 +551,25 @@ class AutoClicker:
         self.progress_label = tk.Label(bottom, text="", font=("Segoe UI", 8),
                                        bg="#1e1e2e", fg="#a6adc8")
         self.progress_label.pack(side="left", padx=(10, 0))
-        tk.Label(bottom, text=self.version, font=("Segoe UI", 8),
+
+        right_bottom = tk.Frame(bottom, bg="#1e1e2e")
+        right_bottom.pack(side="right")
+        tk.Label(right_bottom, text=self.version, font=("Segoe UI", 8),
                  bg="#1e1e2e", fg="#6c7086").pack(side="right")
+        tk.Label(right_bottom, text=" · ", font=("Segoe UI", 8),
+                 bg="#1e1e2e", fg="#6c7086").pack(side="right")
+        github_lbl = tk.Label(right_bottom, text="GitHub", font=("Segoe UI", 8, "underline"),
+                              bg="#1e1e2e", fg="#89b4fa", cursor="hand2")
+        github_lbl.pack(side="right")
+        github_lbl.bind("<Button-1>", lambda e: webbrowser.open(self.github_url))
+        ToolTip(github_lbl, "Open the project repository on GitHub")
+        tk.Label(right_bottom, text=" · ", font=("Segoe UI", 8),
+                 bg="#1e1e2e", fg="#6c7086").pack(side="right")
+        check_lbl = tk.Label(right_bottom, text="Check Update", font=("Segoe UI", 8, "underline"),
+                             bg="#1e1e2e", fg="#89b4fa", cursor="hand2")
+        check_lbl.pack(side="right")
+        check_lbl.bind("<Button-1>", lambda e: self.check_for_update())
+        ToolTip(check_lbl, "Check GitHub for a newer version")
 
     def bind_list_shortcuts(self):
         self.points_listbox.bind("<Delete>", lambda e: self.on_list_delete(e))
@@ -523,8 +651,26 @@ class AutoClicker:
         except Exception:
             pass
 
+    def _make_dot_image(self, color, size=10):
+        """Create a solid circle PhotoImage (works inside ttk.Button via compound)."""
+        img = tk.PhotoImage(width=size, height=size)
+        r = size // 2
+        cx = cy = r
+        # Transparent-ish corners left as default; fill disk with color
+        for y in range(size):
+            for x in range(size):
+                if (x - cx + 0.5) ** 2 + (y - cy + 0.5) ** 2 <= (r - 0.2) ** 2:
+                    img.put(color, (x, y))
+        return img
+
     def set_record_indicator(self, active):
-        self.record_indicator.itemconfig("dot", fill="#ef4444" if active else "#5c1a1a")
+        """Dot always visible inside the button: bright red when recording, dark red when idle."""
+        img = self._rec_dot_active if active else self._rec_dot_idle
+        self.record_btn.config(
+            image=img,
+            compound="left",
+            text="Stop Rec" if active else "Record"
+        )
 
     def on_list_drag_start(self, event):
         if self.is_busy():
@@ -589,12 +735,20 @@ class AutoClicker:
 
     def refresh_points_list(self):
         self.points_listbox.delete(0, tk.END)
+        emoji_map = {
+            "click":  "🖱️",
+            "drag":   "↔️ ",
+            "scroll": "↕️ ",
+            "wait":   "⏱️  ",
+            "key":    "⌨️  ",
+        }
         for i, p in enumerate(self.points, 1):
             name = p.get("name", "").strip()
-            prefix = f"{i}. "
+            action = p.get("action") or "click"
+            emoji = emoji_map.get(action, "•")
+            prefix = f"{i}. {emoji} "
             if name:
                 prefix += f"{name}: "
-            action = p.get("action")
             if action == "drag":
                 text = f"{prefix}DRAG ({p['x']},{p['y']}) → ({p['drag_x']},{p['drag_y']}) x{p.get('count', 1)}"
             elif action == "wait":
@@ -606,7 +760,11 @@ class AutoClicker:
                 text = f"{prefix}SCROLL {direction} ({p.get('x', 0)},{p.get('y', 0)}) x{p.get('count', 1)}"
             else:
                 text = f"{prefix}CLICK ({p['x']},{p['y']}) {p.get('type', 'Left')} x{p.get('count', 1)}"
+                action = "click"
             self.points_listbox.insert(tk.END, text)
+            idx = self.points_listbox.size() - 1
+            color = ACTION_COLORS.get(action, "#cdd6f4")
+            self.points_listbox.itemconfig(idx, foreground=color)
 
     def clear_previews(self):
         for w in self.preview_windows:
@@ -892,6 +1050,11 @@ class AutoClicker:
         p = self.points[self.selected_index]
         action = p.get("action", "click")
 
+        # Key edit uses the exact same layout as Add Keyboard Action
+        if action == "key":
+            self._open_edit_key_popup(p)
+            return
+
         self.clear_previews()
         preview_main = preview_end = None
         if action == "click":
@@ -908,7 +1071,7 @@ class AutoClicker:
         popup.resizable(False, False)
         popup.transient(self.root)
         # No grab_set when previews exist: allows dragging the on-screen markers
-        if action in ("wait", "key"):
+        if action == "wait":
             popup.grab_set()
 
         def on_popup_close():
@@ -951,24 +1114,6 @@ class AutoClicker:
             ttk.Spinbox(frame, from_=1, to=60000, textvariable=var, width=10,
                         validate="key", validatecommand=vcmd).grid(row=0, column=1, pady=3, padx=5)
             entries["delay"] = var
-
-        elif action == "key":
-            tk.Label(frame, text="Key / Combo:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
-            key_var = tk.StringVar(value=p.get("key", "a"))
-            ttk.Entry(frame, textvariable=key_var, width=16).grid(row=0, column=1, pady=2, padx=5)
-            entries["key"] = key_var
-            tk.Label(frame, text="e.g. a  |  ctrl+c  |  shift+3  |  alt+f4",
-                     bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).grid(row=1, column=0, columnspan=2, sticky="w")
-            tk.Label(frame, text="Repeat:", bg="#1e1e2e", fg="#cdd6f4").grid(row=2, column=0, sticky="w", pady=2)
-            var_count = tk.IntVar(value=p.get("count", 1))
-            ttk.Spinbox(frame, from_=1, to=100, textvariable=var_count, width=10,
-                        validate="key", validatecommand=vcmd).grid(row=2, column=1, pady=2, padx=5)
-            entries["count"] = var_count
-            tk.Label(frame, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=3, column=0, sticky="w", pady=2)
-            var_delay = tk.IntVar(value=p.get("delay_after", 100))
-            ttk.Spinbox(frame, from_=0, to=10000, textvariable=var_delay, width=10,
-                        validate="key", validatecommand=vcmd).grid(row=3, column=1, pady=2, padx=5)
-            entries["delay_after"] = var_delay
 
         elif action == "scroll":
             tk.Label(frame, text="X:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
@@ -1286,33 +1431,34 @@ class AutoClicker:
         y = self.root.winfo_y() + 80
         popup.geometry(f"+{x}+{y}")
 
-    def add_key_action(self):
-        if self.is_busy():
-            return
+    def _open_edit_key_popup(self, p):
+        """Edit a Key action — layout identical to Add Keyboard Action."""
         popup = tk.Toplevel(self.root)
-        popup.title("Add Keyboard Action")
+        popup.title("Edit Item")
         popup.configure(bg="#1e1e2e")
         popup.resizable(False, False)
         popup.transient(self.root)
         popup.grab_set()
+        vcmd = (popup.register(self.validate_number), "%d", "%P")
 
-        tk.Label(popup, text="Key or combination", font=("Segoe UI", 10, "bold"),
+        tk.Label(popup, text=f"Editing item #{self.selected_index + 1}", font=("Segoe UI", 11, "bold"),
                  bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 4))
-        tk.Label(popup, text="Type manually or Capture (Ctrl/Alt/Shift/Cmd + key)",
+        tk.Label(popup, text="Type manually or use Capture Key (Ctrl/Alt/Shift/Cmd + key)",
                  bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
 
         name_frame = tk.Frame(popup, bg="#1e1e2e")
-        name_frame.pack(fill="x", padx=20, pady=(8, 0))
+        name_frame.pack(fill="x", padx=20, pady=(10, 0))
         tk.Label(name_frame, text="Name (optional):", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
-        name_var = tk.StringVar(value="")
+        name_var = tk.StringVar(value=p.get("name", ""))
         ttk.Entry(name_frame, textvariable=name_var, width=18).pack(side="left", padx=(6, 0))
 
-        key_var = tk.StringVar(value="")
-        entry = ttk.Entry(popup, textvariable=key_var, width=22, font=("Segoe UI", 11))
-        entry.pack(pady=8)
+        key_row = tk.Frame(popup, bg="#1e1e2e")
+        key_row.pack(fill="x", padx=20, pady=(10, 0))
+        tk.Label(key_row, text="Key / Combo:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        key_var = tk.StringVar(value=p.get("key", "a"))
+        entry = ttk.Entry(key_row, textvariable=key_var, width=16, font=("Segoe UI", 10))
+        entry.pack(side="left", padx=(6, 6))
         entry.focus_set()
-        tk.Label(popup, text="Examples:  AaBb  |  ctrl+c  |  shift+3  |  alt+F4  |  cmd+v",
-                 bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
 
         def capture_from_listener():
             self.status_label.config(text="Hold modifiers, then press the key...", fg="#f9e2af")
@@ -1346,15 +1492,142 @@ class AutoClicker:
 
             KeyboardListener(on_press=on_press, on_release=on_release).start()
 
+        ttk.Button(key_row, text="Capture Key", command=capture_from_listener, width=12).pack(side="left")
+
+        tk.Label(popup, text="Examples:  a  |  ctrl+c  |  shift+3  |  alt+F4  |  cmd+v",
+                 bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack(pady=(4, 0))
+
+        opts = tk.Frame(popup, bg="#1e1e2e")
+        opts.pack(padx=20, pady=(10, 0))
+        tk.Label(opts, text="Repeat:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
+        count_var = tk.IntVar(value=p.get("count", 1))
+        ttk.Spinbox(opts, from_=1, to=100, textvariable=count_var, width=10,
+                    validate="key", validatecommand=vcmd).grid(row=0, column=1, pady=2, padx=5)
+        tk.Label(opts, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=1, column=0, sticky="w", pady=2)
+        delay_var = tk.IntVar(value=p.get("delay_after", 100))
+        ttk.Spinbox(opts, from_=0, to=10000, textvariable=delay_var, width=10,
+                    validate="key", validatecommand=vcmd).grid(row=1, column=1, pady=2, padx=5)
+
         def apply():
             k = key_var.get().strip().lower()
             if not k:
                 messagebox.showwarning("Warning", "Enter or capture a key / combo.", parent=popup)
                 return
+            try:
+                count = max(1, int(count_var.get()))
+                delay_after = max(0, int(delay_var.get()))
+            except Exception:
+                count, delay_after = 1, 100
+            p["name"] = name_var.get().strip()
+            p["key"] = k
+            p["count"] = count
+            p["delay_after"] = delay_after
+            self.refresh_points_list()
+            self.select_index(self.selected_index)
+            self.status_label.config(text="Item updated", fg="#a6e3a1")
+            popup.destroy()
+
+        btn_row = tk.Frame(popup, bg="#1e1e2e")
+        btn_row.pack(pady=12)
+        ttk.Button(btn_row, text="Apply", command=apply, width=8).pack(side="left", padx=4)
+        ttk.Button(btn_row, text="Cancel", command=popup.destroy, width=8).pack(side="left", padx=4)
+        popup.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (popup.winfo_width() // 2)
+        y = self.root.winfo_y() + 100
+        popup.geometry(f"+{x}+{y}")
+
+    def add_key_action(self):
+        if self.is_busy():
+            return
+        popup = tk.Toplevel(self.root)
+        popup.title("Add Keyboard Action")
+        popup.configure(bg="#1e1e2e")
+        popup.resizable(False, False)
+        popup.transient(self.root)
+        popup.grab_set()
+        vcmd = (popup.register(self.validate_number), "%d", "%P")
+
+        tk.Label(popup, text="Add Keyboard Action", font=("Segoe UI", 11, "bold"),
+                 bg="#1e1e2e", fg="#89b4fa").pack(pady=(12, 4))
+        tk.Label(popup, text="Type manually or use Capture Key (Ctrl/Alt/Shift/Cmd + key)",
+                 bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack()
+
+        name_frame = tk.Frame(popup, bg="#1e1e2e")
+        name_frame.pack(fill="x", padx=20, pady=(10, 0))
+        tk.Label(name_frame, text="Name (optional):", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        name_var = tk.StringVar(value="")
+        ttk.Entry(name_frame, textvariable=name_var, width=18).pack(side="left", padx=(6, 0))
+
+        key_row = tk.Frame(popup, bg="#1e1e2e")
+        key_row.pack(fill="x", padx=20, pady=(10, 0))
+        tk.Label(key_row, text="Key / Combo:", bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        key_var = tk.StringVar(value="")
+        entry = ttk.Entry(key_row, textvariable=key_var, width=16, font=("Segoe UI", 10))
+        entry.pack(side="left", padx=(6, 6))
+        entry.focus_set()
+
+        def capture_from_listener():
+            self.status_label.config(text="Hold modifiers, then press the key...", fg="#f9e2af")
+            held_mods = set()
+
+            def on_press(key):
+                try:
+                    name = key_to_str(key, held_mods)
+                    if name in ("ctrl", "alt", "shift", "cmd"):
+                        held_mods.add(name)
+                        return True
+                    order = ["ctrl", "alt", "shift", "cmd"]
+                    mods = [m for m in order if m in held_mods]
+                    combo = "+".join(mods + [name]) if mods else name
+                    self.root.after(0, lambda c=combo: key_var.set(c))
+                    self.root.after(0, lambda c=combo: self.status_label.config(
+                        text=f"Captured: {c}", fg="#a6e3a1"))
+                    return False
+                except Exception:
+                    pass
+                return True
+
+            def on_release(key):
+                try:
+                    name = key_to_str(key)
+                    if name in ("ctrl", "alt", "shift", "cmd"):
+                        held_mods.discard(name)
+                except Exception:
+                    pass
+                return True
+
+            KeyboardListener(on_press=on_press, on_release=on_release).start()
+
+        ttk.Button(key_row, text="Capture Key", command=capture_from_listener, width=12).pack(side="left")
+
+        tk.Label(popup, text="Examples:  a  |  ctrl+c  |  shift+3  |  alt+F4  |  cmd+v",
+                 bg="#1e1e2e", fg="#6c7086", font=("Segoe UI", 8)).pack(pady=(4, 0))
+
+        opts = tk.Frame(popup, bg="#1e1e2e")
+        opts.pack(padx=20, pady=(10, 0))
+        tk.Label(opts, text="Repeat:", bg="#1e1e2e", fg="#cdd6f4").grid(row=0, column=0, sticky="w", pady=2)
+        count_var = tk.IntVar(value=1)
+        ttk.Spinbox(opts, from_=1, to=100, textvariable=count_var, width=10,
+                    validate="key", validatecommand=vcmd).grid(row=0, column=1, pady=2, padx=5)
+        tk.Label(opts, text="Delay Between Repeats (ms):", bg="#1e1e2e", fg="#cdd6f4").grid(row=1, column=0, sticky="w", pady=2)
+        delay_var = tk.IntVar(value=100)
+        ttk.Spinbox(opts, from_=0, to=10000, textvariable=delay_var, width=10,
+                    validate="key", validatecommand=vcmd).grid(row=1, column=1, pady=2, padx=5)
+
+        def apply():
+            k = key_var.get().strip().lower()
+            if not k:
+                messagebox.showwarning("Warning", "Enter or capture a key / combo.", parent=popup)
+                return
+            try:
+                count = max(1, int(count_var.get()))
+                delay_after = max(0, int(delay_var.get()))
+            except Exception:
+                count, delay_after = 1, 100
             self.points.append({
                 "action": "key", "key": k,
-                "count": 1,
-                "delay_after": 100,
+                "count": count,
+                "delay_after": delay_after,
                 "name": name_var.get().strip()
             })
             self.refresh_points_list()
@@ -1363,8 +1636,7 @@ class AutoClicker:
             popup.destroy()
 
         btn_row = tk.Frame(popup, bg="#1e1e2e")
-        btn_row.pack(pady=10)
-        ttk.Button(btn_row, text="Capture Key", command=capture_from_listener, width=12).pack(side="left", padx=4)
+        btn_row.pack(pady=12)
         ttk.Button(btn_row, text="Add", command=apply, width=8).pack(side="left", padx=4)
         ttk.Button(btn_row, text="Cancel", command=popup.destroy, width=8).pack(side="left", padx=4)
         popup.update_idletasks()
@@ -1452,7 +1724,6 @@ class AutoClicker:
         self.is_recording = True
         self.record_events = []
         self.record_start_time = time.time()
-        self.record_btn.config(text="Stop Rec")
         self.set_record_indicator(True)
         self.status_label.config(text=f"Recording... Press {self.record_stop_hotkey.upper()} to stop", fg="#f38ba8")
         self.minimize_for_capture()
@@ -1575,7 +1846,6 @@ class AutoClicker:
         if self.points:
             self.select_index(len(self.points) - 1)
         self.restore_after_capture()
-        self.record_btn.config(text="Record")
         self.set_record_indicator(False)
         self.status_label.config(text=f"Recording stopped — {added} actions added", fg="#a6e3a1")
 
@@ -2013,6 +2283,58 @@ class AutoClicker:
             self.status_label.config(text="Profile loaded", fg="#a6e3a1")
         except Exception as e:
             messagebox.showerror("Error", str(e))
+
+    def _parse_version(self, tag):
+        """Extract comparable version tuple from a tag like 'v5.1' or '5.1.0'."""
+        nums = re.findall(r"\d+", str(tag))
+        return tuple(int(n) for n in nums) if nums else (0,)
+
+    def check_for_update(self):
+        self.status_label.config(text="Checking for updates...", fg="#f9e2af")
+        self.root.update_idletasks()
+
+        def worker():
+            try:
+                url = "https://api.github.com/repos/tamimialiir/AutoClickerPro/releases/latest"
+                req = urllib.request.Request(url, headers={"User-Agent": "AutoClickerPro"})
+                with urllib.request.urlopen(req, timeout=8) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                latest_tag = data.get("tag_name") or data.get("name") or ""
+                releases_url = data.get("html_url") or f"{self.github_url}/releases"
+                current = self._parse_version(self.version)
+                latest = self._parse_version(latest_tag)
+
+                def show_result():
+                    if latest > current:
+                        msg = f"A new version is available!\n\nCurrent:  {self.version}\nLatest:   {latest_tag}"
+                        result = messagebox.askyesno(
+                            "Update Available",
+                            msg + "\n\nOpen the Releases page to download?",
+                            parent=self.root
+                        )
+                        if result:
+                            webbrowser.open(releases_url)
+                        self.status_label.config(text=f"Update available: {latest_tag}", fg="#a6e3a1")
+                    else:
+                        messagebox.showinfo(
+                            "Up to Date",
+                            f"You are using the latest version ({self.version}).",
+                            parent=self.root
+                        )
+                        self.status_label.config(text="You're up to date", fg="#a6e3a1")
+
+                self.root.after(0, show_result)
+            except Exception as e:
+                def show_err():
+                    messagebox.showwarning(
+                        "Update Check Failed",
+                        f"Could not check for updates.\n\n{e}",
+                        parent=self.root
+                    )
+                    self.status_label.config(text="Update check failed", fg="#f38ba8")
+                self.root.after(0, show_err)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def exit_app(self):
         self.stop_flag = True

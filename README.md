@@ -1,11 +1,13 @@
-# Auto Clicker Pro
+# Auto Clicker Pro (v5.2) 🚀
 
-A powerful, modern **Auto Clicker** with full mouse & keyboard automation, recording, profiles, speed control, and a clean dark UI.
+Auto Clicker Pro is a highly sophisticated, modular, and human-like automation utility designed to simulate complex mouse and keyboard sequences through a user-friendly, dark-themed interface based on the popular **Catppuccin** color palette. 
 
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Version](https://img.shields.io/badge/Version-v5.1-orange)
+![Version](https://img.shields.io/badge/Version-v5.2-orange)
+
+In version **v5.2**, the application framework has been completely re-engineered from the ground up. By transitioning to a professional, industry-standard **Modular Architecture**, the codebase is cleaner, more robust, and exceptionally easy to maintain or extend.
 
 ---
 
@@ -32,25 +34,29 @@ A powerful, modern **Auto Clicker** with full mouse & keyboard automation, recor
 
 
 ## Screenshots
-![Main Window](screenshots/main_5.1.png)
+![Main Window](screenshots/main_5.2.png)
 
+---
 
-## Requirements
+## 🚀 Getting Started
 
-- Python 3.8 or higher
-- [pynput](https://pypi.org/project/pynput/)
+### Prerequisites
+*   Python **3.8 or higher**
+*   Windows, macOS, or Linux operating system (Keyboard layout switching is optimized for Windows)
 
+### 1. Installation
+The application relies on the `pynput` library for system-wide keyboard and mouse capturing/simulation. Install it via pip:
 ```bash
 pip install pynput
 ```
 
-## How to Run
+### 2. Run the Application
+Simply execute the main launcher script:
 ```bash
-git clone https://github.com/tamimialiir/AutoClickerPro.git
-cd AutoClickerPro
-pip install pynput
 python main.py
 ```
+
+---
 
 ## Usage Guide
 
@@ -64,18 +70,14 @@ python main.py
 | **Add Wait**    | Insert a delay (in milliseconds)                                            |
 | **Record**      | Record live mouse + keyboard actions                                        |
 
-After capturing a Click, Drag or Scroll position, a settings dialog opens so you can set hold time, repeats, type, name, etc. before the item is added to the list.
-
-For **Key** actions you can type the combination manually or use **Capture Key**, and also set **Repeat** count and **Delay Between Repeats**.
-
 ### Editing & Organizing
-Double-click any item (or select + **Edit**) to modify it.  
-While editing Click / Drag / Scroll points, an on-screen marker appears — **drag the marker** to change coordinates, or edit the numbers manually.  
-Editing a **Key** action uses the same layout as Add Key (including Capture Key, Repeat, and Delay).  
-Drag items in the list to reorder.  
-Use ↑ / ↓ buttons or the Delete key.  
-Ctrl+C / Ctrl+X / Ctrl+V for copy / cut / paste.  
-You can give every item an optional **name** for easier organization.
+
+*   **Reorder Items:** Click and drag any item in the list up or down to change its execution sequence visually. (Alternative: Use the `↑` and `↓` buttons).
+*   **Copy Action (`Ctrl + C`):** Copies the selected action to the internal clipboard.
+*   **Cut Action (`Ctrl + X`):** Cuts the selected action from the list.
+*   **Paste Action (`Ctrl + V`):** Pastes the copied action directly beneath the current selection.
+*   **Remove Action (`Delete`):** Instantly deletes the selected action.
+*   **Configure Action:** Double-click any row to open its dedicated configuration popup.
 
 The action list is **color-coded with emojis**:
 | Action | Emoji | Color   |
@@ -88,8 +90,8 @@ The action list is **color-coded with emojis**:
 
 ### Global Settings
 **Speed:** Global playback speed from ×0.1 to ×20 (default ×1.0). Affects waits, holds, drag duration and repeat delays. Can only be changed before Start, while Paused, or after Stop. Use **Reset** to return to ×1.0.  
-**Time Jitter:** Adds random delay (±ms) to waits and repeats.  
-**Position Jitter:** Slightly randomizes click / drag / scroll coordinates (±px).  
+**Time Jitter:** Add a randomized delay variation of up to `±500ms` on wait actions, preventing rigid, machine-like click intervals. 
+**Position Jitter:** Add a random spatial offset of up to `±50px` on your clicks and drag points. This simulates natural, non-static human click distributions. 
 **Cycles:** How many times the whole sequence should run.  
 **Infinite:** Run forever until stopped.  
 **Always on Top:** Keep the window above other windows.
@@ -128,38 +130,31 @@ Perfect for sharing macros or switching between different tasks.
 - Click **Check Update** in the bottom-right to see if a newer release is available on GitHub.
 - Click the **GitHub** link in the bottom-right corner to open the project repository.
 
+---
 
-## Supported Actions
+## ✨ What's New in v5.2
 
-| Action   | Description                                        |
-|----------|----------------------------------------------------|
-| Click    | Left / Right / Middle / Double click + hold time   |
-| Drag     | Smooth drag from point A to point B                |
-| Scroll   | Mouse wheel up or down at specific coordinates     |
-| Key      | Single key or combinations (`ctrl+shift+s`...)     |
-| Wait     | Precise delay in milliseconds                      |
+*   **Modular Software Architecture:** The single-file legacy script has been meticulously split into 8 specialized, independent, and clean Python modules. This prevents code truncation, simplifies debugging, and respects object-oriented programming (OOP) principles.
+*   **Smart UI Lock & Safety:** To prevent accidental configuration changes during execution and record, the application automatically locks all inputs, scale bars, jitter entries, and hotkey configuration panels 
 
+---
 
-## What's new in v5.1
+## 📂 Modular Project Structure
 
-- **Color-coded action list** with emojis — 🖱️ Click (green), ↔️ Drag (blue), ↕️ Scroll (purple), ⏱️ Wait (yellow), ⌨️ Key (orange)
-- **Tooltips** added to almost every control (all in English)
-- Clickable **GitHub** link in the app footer
-- **Check Update** — compares current version with the latest GitHub Release
-- Improved **Key** dialogs: Capture Key, Repeat, and Delay Between Repeats (Add & Edit share the same layout)
-- Renamed to **Auto Clicker Pro**
+The project now comprises the following organized file structure, coupled via **Multiple Inheritance** in the main execution class:
 
+| File Name | Technical Responsibility |
+| :--- | :--- |
+| **`main.py`** | The main launcher and entry point. It dynamically resolves versioned files and compiles the final `AutoClicker` class by inheriting all modular behaviors. |
+| **`gui_layout.py`** | Handles the visual layout, Tkinter style mapping, widgets, Catppuccin color theme configurations, and the recursive UI قفل state manager (`set_ui_lock_state`). |
+| **`actions_engine.py`** | The simulation core. Manages the multi-threaded execution loop, coordinate randomization (jitter), and physical mouse clicking, smooth dragging, scrolling, and keyboard actions alongside interruptible sleep routines. |
+| **`recorder_engine.py`** | Manages live physical peripheral tracking. Features precise millisecond-level delay logging and the smart noise-filtering algorithm for UI-triggered stops. |
+| **`profiles_manager.py`** | Handles profile persistence (saving/loading JSON macro sheets), global hotkey listening, dynamic system language layout shifting, and GitHub update checking. |
+| **`popups.py`** | Holds all the custom modal dialog forms (`Toplevel`) for creating, configuring, and editing sequence steps, complete with transient bindings and real-time pynput capturing. |
+| **`gui_components.py`** | Small reusable visual elements, including the custom-delayed `ToolTip` class and the dual-ring translucent on-screen drag handles. |
+| **`utils.py`** | Global constants, helper utilities for PyInstaller resource path translation (`resource_path`), keyboard modifier string parsers, and style maps. |
 
-## What's new in v5.0
-
-- Removed global “Defaults for New Points” — each Click / Drag opens its own settings after capture
-- **Speed** slider (×0.1 – ×20) with Reset button
-- Draggable on-screen markers when editing positions
-- Add Scroll uses the same capture-then-configure flow as Click / Drag
-- Optional name field for Wait, Key and Scroll (all action types)
-- Renamed Random Time / Random Position → **Time Jitter** / **Position Jitter**
-- Media / system keys blocked from hotkey assignment
-- Button order: Click → Drag → Scroll → Key → Wait
+---
 
 
 ## License
@@ -173,3 +168,5 @@ If you find a bug or have a feature idea, open an issue.
 
 
 Made with ❤️ for automation lovers
+
+**Version:** v5.2 | **Theme:** Catppuccin Dark | **Author:** [TamimiAliIR](https://github.com/tamimialiir)

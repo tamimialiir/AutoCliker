@@ -1,36 +1,7 @@
 import webbrowser
 import tkinter as tk
 from tkinter import ttk
-import importlib.util
-import os
-import sys
-
-def load_gui_components():
-    for name in ["gui_components-v3.py", "gui_components-v2.py", "gui_components_v2.py", "gui_components.py"]:
-        path = name
-        if not os.path.exists(path):
-            dir_of_file = os.path.dirname(os.path.abspath(__file__))
-            path = os.path.join(dir_of_file, name)
-            
-        if os.path.exists(path):
-            try:
-                module_name = name.split(".")[0].replace("-", "_")
-                spec = importlib.util.spec_from_file_location(module_name, path)
-                module = importlib.util.module_from_spec(spec)
-                sys.modules["gui_components"] = module
-                spec.loader.exec_module(module)
-                return module
-            except Exception as e:
-                pass
-    try:
-        import gui_components
-        return gui_components
-    except ImportError:
-        pass
-    raise ImportError("Could not locate gui_components.py or gui_components-v2.py")
-
-gui_components = load_gui_components()
-ToolTip = gui_components.ToolTip
+from gui_components import ToolTip
 
 class GuiLayout:
     def _make_dot_image(self, color, size=10):

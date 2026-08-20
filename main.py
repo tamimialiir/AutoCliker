@@ -2,55 +2,20 @@ import sys
 import os
 import tkinter as tk
 import platform
-import importlib.util
 from pynput.mouse import Controller as MouseController
 from pynput.keyboard import Controller as KeyboardController
 
 # Helper function for resource paths (works for dev and PyInstaller)
 from utils import resource_path
 
-# Generalized Dynamic Module Loader
-def load_dynamic_module(module_name_in_sys, filenames):
-    for name in filenames:
-        path = name
-        if not os.path.exists(path):
-            dir_of_file = os.path.dirname(os.path.abspath(__file__))
-            path = os.path.join(dir_of_file, name)
-            
-        if os.path.exists(path):
-            try:
-                m_name = name.split(".")[0].replace("-", "_")
-                spec = importlib.util.spec_from_file_location(m_name, path)
-                module = importlib.util.module_from_spec(spec)
-                sys.modules[module_name_in_sys] = module
-                spec.loader.exec_module(module)
-                return module
-            except Exception as e:
-                print(f"Error loading {path}: {e}")
-                pass
-    # Fallback to standard import
-    try:
-        module = __import__(module_name_in_sys)
-        return module
-    except ImportError:
-        pass
-    raise ImportError(f"Could not locate any of {filenames} or default {module_name_in_sys}")
-
-# Dynamically load all components to support hyphenated files (-v2, -v3, -v4, etc.)
-popups = load_dynamic_module("popups", ["popups-v2.py", "popups_v2.py", "popups.py"])
-gui_components = load_dynamic_module("gui_components", ["gui_components-v3.py", "gui_components-v2.py", "gui_components.py"])
-actions_engine = load_dynamic_module("actions_engine", ["actions_engine-v2.py", "actions_engine_v2.py", "actions_engine.py"])
-recorder_engine = load_dynamic_module("recorder_engine", ["recorder_engine-v4.py", "recorder_engine-v3.py", "recorder_engine_v3.py", "recorder_engine-v2.py", "recorder_engine.py"])
-gui_layout = load_dynamic_module("gui_layout", ["gui_layout-v6.py", "gui_layout-v5.py", "gui_layout-v4.py", "gui_layout-v3.py", "gui_layout.py"])
-list_manager = load_dynamic_module("list_manager", ["list_manager-v3.py", "list_manager-v2.py", "list_manager_v2.py", "list_manager.py"])
-profiles_manager = load_dynamic_module("profiles_manager", ["profiles_manager.py"])
-
-# Extract parent classes
-ActionsEngine = actions_engine.ActionsEngine
-RecorderEngine = recorder_engine.RecorderEngine
-GuiLayout = gui_layout.GuiLayout
-ListManager = list_manager.ListManager
-ProfilesManager = profiles_manager.ProfilesManager
+# Standard clean static imports
+import popups
+import gui_components
+from actions_engine import ActionsEngine
+from recorder_engine import RecorderEngine
+from gui_layout import GuiLayout
+from list_manager import ListManager
+from profiles_manager import ProfilesManager
 
 class AutoClicker(ActionsEngine, ListManager, RecorderEngine, ProfilesManager, GuiLayout):
     def __init__(self, root):
@@ -158,7 +123,7 @@ class AutoClicker(ActionsEngine, ListManager, RecorderEngine, ProfilesManager, G
     def finish_add_point_and_edit(self, action, data):
         popups.finish_add_point_and_edit(self, action, data)
 
-    # Previews delegates
+    # Previews delegates - Purely using clean gui_components.py
     def clear_previews(self):
         gui_components.clear_previews(self.preview_windows)
         
